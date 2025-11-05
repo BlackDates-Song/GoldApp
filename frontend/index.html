@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>黄金ETF K线图</title>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+    
+    <style>
+        /* 简单的页面样式 */
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: #f4f7f6;
+            margin: 0;
+            padding: 20px;
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+        }
+        /* 2. 定义一个用来放图表的 div，并给它高度 */
+        #chart-container {
+            width: 90%;
+            height: 600px; /* 必须给一个高度，ECharts才能显示 */
+            margin: 20px auto;
+            border: 1px solid #ccc;
+            background-color: #fff;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+    </style>
+</head>
+<body>
+
+    <h1>黄金ETF (518880.SS) K线图</h1>
+    
+    <div id="chart-container"></div>
+
+    <script>
+        // 当页面加载完毕后，立即执行
+        document.addEventListener("DOMContentLoaded", function() {
+            
+            // 这是你的后端API地址
+            const API_URL = "http://127.0.0.1:8000/api/gold-data";
+
+            // 1. 初始化 ECharts 实例
+            var myChart = echarts.init(document.getElementById('chart-container'));
+
+            // 显示一个临时的“加载中”动画
+            myChart.showLoading();
+
+            // 2. 使用 fetch API 从你的后端获取数据
+            fetch(API_URL)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP 错误! 状态: ${response.status}`);
+                    }
+                    return response.json(); // 将响应解析为 JSON
+                })
+                .then(apiResponse => {
+                    
+                    myChart.hideLoading(); // 隐藏加载动画
+                    
+                    if (!apiResponse.success || !apiResponse.k_line_data) {
+                        throw new Error("API返回了错误或数据为空");
+                    }
+                    
+                    // --- ECharts 配置 ---
+                    // 我们从API拿到了三个关键数据:
+                    // apiResponse.dates       -> ['2020-01-01', '2020-01-02', ...]
+                    // apiResponse.k_line_data -> [ [date, open, close, low, high], ... ]
+                    // apiResponse.volume_data -> [ [date, volume], ... ]
+                    
+                    // ECharts 需要的数据格式:
+                    // K线: [ [open, close, low, high], ... ] (不需要日期)
+                    // 成交量: [ [index, volume], ... ] (用索引对应日期)
+                    // X轴: [ '2020-01-01', '2020-01-02', ... ]
+                    
+                    // 3. 数据处理 (提取 K 线和成交量数据)
+                    // 我们的后端已经把 k_line_data 格式化为 [date, open, close, low, high]
+                    // 我们需要把它转为 ECharts 的 [open, close, low, high]
+                    
+                    let kLineData = apiResponse.k_line_data.map(item => [item[1], item[2], item[3], item[4]]);
+                    
+                    // 将成交量数据 [date, volume] 转为 [index, volume]
+                    let volumeData = apiResponse.volume_data.map((item, index) => [index, item[1]]);
+
+                    // 4. 定义 ECharts 的“配置项”
+                    var option = {
+                        title: {
+                            text: '518880.SS (前复权)',
+                            left: 'center'
+                        },
+                        tooltip: {
+                            trigger: 'axis',
+                            axisPointer: { type: 'cross' }
+                        },
+                        legend: {
+                            data: ['K线', 'MA5', 'MA10', 'MA20'],
+                            top: 30
+                        },
+                        // 网格布局 (K线图在上，成交量在下)
+                        grid: [
+                            { left: '10%', right: '8%', height: '50%' }, // K线图的网格
+                            { left: '10%', right: '8%', top: '65%', height: '16%' } // 成交量的网格
+                        ],
+                        // X轴 (日期轴)
+                        xAxis: [
+                            {
+                                type: 'category',
+                                data: apiResponse.dates, // 使用后端传来的日期列表
+                                gridIndex: 0, // K线图用这个X轴
+                                scale: true,
+                            },
+                            {
+                                type: 'category',
+                                data: apiResponse.dates,
+                                gridIndex: 1, // 成交量用这个X轴
+                                axisLabel: { show: false } // 不显示成交量图的X轴标签
+                            }
+                        ],
+                        // Y轴
+                        yAxis: [
+                            {
+                                type: 'value',
+                                gridIndex: 0, // K线图的Y轴
+                                scale: true,
+                                splitLine: { show: true },
+                                axisLabel: { formatter: '{value} CNY' }
+                            },
+                            {
+                                type: 'value',
+                                gridIndex: 1, // 成交量的Y轴
+                                axisLabel: { show: false },
+                                axisTick: { show: false },
+                                splitLine: { show: false }
+                            }
+                        ],
+                        // 数据区域缩放
+                        dataZoom: [
+                            {
+                                type: 'inside',
+                                xAxisIndex: [0, 1], // 同时缩放K线和成交量
+                                start: 80, // 默认显示后 20% 的数据
+                                end: 100
+                            },
+                            {
+                                type: 'slider',
+                                xAxisIndex: [0, 1],
+                                top: '85%',
+                                start: 80,
+                                end: 100
+                            }
+                        ],
+                        // 系列 (真正的数据)
+                        series: [
+                            {
+                                name: 'K线',
+                                type: 'candlestick',
+                                xAxisIndex: 0,
+                                yAxisIndex: 0,
+                                data: kLineData // 使用我们处理好的K线数据
+                            },
+                            {
+                                name: '成交量',
+                                type: 'bar',
+                                xAxisIndex: 1,
+                                yAxisIndex: 1,
+                                data: volumeData, // 使用我们处理好的成交量数据
+                                itemStyle: {
+                                    color: '#777'
+                                }
+                            },
+                            // --- 你未来加AI预测的地方 ---
+                            // 比如，你可以在这里加一个 'scatter' (散点图) 系列
+                            // 来绘制买入/卖出信号
+                        ]
+                    };
+
+                    // 5. 应用配置项，把图画出来！
+                    myChart.setOption(option);
+
+                })
+                .catch(error => {
+                    // 如果获取失败
+                    myChart.hideLoading();
+                    console.error('获取数据失败:', error);
+                    myChart.showLoading({
+                        text: `数据加载失败: ${error.message}`,
+                        showSpinner: false
+                    });
+                });
+            
+            // 让图表跟随窗口大小自适应
+            window.addEventListener('resize', function() {
+                myChart.resize();
+            });
+        });
+    </script>
+
+</body>
+</html>
