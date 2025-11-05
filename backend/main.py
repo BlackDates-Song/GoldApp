@@ -55,6 +55,42 @@ async def lifespan(app: FastAPI):
 # --- 创建 FastAPI 应用 ---
 app = FastAPI(lifespan=lifespan)
 
+# --- 获取黄金相关新闻 ---
+@app.get("/api/gold-news")
+async def get_gold_news():
+    """
+    提供黄金相关的最新新闻
+    """
+    try:
+        # 我们用 GLD (全球最大黄金ETF) 作为新闻源，它的英文新闻更多、更及时
+        # yfinance 对非美股的新闻支持有限
+        ticker = yf.Ticker("GLD") 
+        
+        # .news 属性会返回一个字典列表
+        news_list = ticker.news
+        
+        if not news_list:
+            # 如果没有新闻，返回空列表
+            return {"success": True, "news": []}
+
+        # 格式化新闻数据，只选择我们需要的字段
+        formatted_news = []
+        for item in news_list[:10]: # 只取最新的 10 条
+            # 确保关键字段存在
+            if 'title' in item and 'link' in item:
+                formatted_news.append({
+                    "title": item.get('title'),
+                    "link": item.get('link'),
+                    "publisher": item.get('publisher', 'N/A') # 有的可能没有发布者
+                })
+        
+        return {"success": True, "news": formatted_news}
+    
+    except Exception as e:
+        # yfinance 的 .news 属性有时会不稳定
+        print(f"获取新闻失败: {e}")
+        raise HTTPException(status_code=500, detail=f"获取新闻数据失败: {e}")
+
 # --- 配置 CORS 跨域 ---
 app.add_middleware(
     CORSMiddleware,

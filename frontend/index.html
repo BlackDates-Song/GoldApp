@@ -3,189 +3,284 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>黄金ETF K线图</title>
+    <title>黄金仪表盘 (v0.2)</title>
     <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
     
     <style>
-        /* 简单的页面样式 */
+        /* --- 页面基础样式 --- */
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-            background-color: #f4f7f6;
+            background-color: #f0f2f5; /* 换个更像"仪表盘"的背景色 */
             margin: 0;
             padding: 20px;
-        }
-        h1 {
-            text-align: center;
             color: #333;
         }
-        /* 2. 定义一个用来放图表的 div，并给它高度 */
+        
+        /* --- 1. 核心布局：使用 Flexbox --- */
+        .dashboard-container {
+            display: flex;
+            flex-wrap: wrap; /* 允许换行 */
+            width: 100%;
+            max-width: 1600px; /* 给个最大宽度 */
+            margin: 0 auto; /* 居中 */
+        }
+        
+        /* 2. 左侧主内容区 (放K线图) */
+        .main-content {
+            flex: 7; /* 占据 7 份 */
+            min-width: 600px; /* 最小宽度 */
+            padding-right: 20px; /* 和右侧的间距 */
+            box-sizing: border-box; /* 边框和内边距算入宽度 */
+        }
+
+        /* 3. 右侧侧边栏 (放AI和新闻) */
+        .sidebar-content {
+            flex: 3; /* 占据 3 份 */
+            min-width: 300px; /* 最小宽度 */
+            display: flex;
+            flex-direction: column; /* 让子元素垂直排列 */
+            gap: 20px; /* 两个小组件之间的间距 */
+        }
+
+        /* --- 4. “小组件”卡片通用样式 --- */
+        .widget-card {
+            background-color: #ffffff;
+            border: 1px solid #e8e8e8;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+            padding: 20px;
+            box-sizing: border-box;
+        }
+        
+        .widget-card h2 {
+            margin-top: 0;
+            margin-bottom: 15px;
+            font-size: 1.25rem;
+            border-bottom: 1px solid #f0f0f0;
+            padding-bottom: 10px;
+        }
+
+        /* 5. K线图容器样式 (现在它是一个"卡片") */
+        #k-line-card {
+            width: 100%;
+        }
+
+        /* K线图图表本身的 div (必须给高度) */
         #chart-container {
-            width: 90%;
-            height: 600px; /* 必须给一个高度，ECharts才能显示 */
-            margin: 20px auto;
-            border: 1px solid #ccc;
-            background-color: #fff;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            width: 100%;
+            height: 600px; 
+        }
+
+        /* 6. 右侧小组件的样式 */
+        #ai-widget, #news-widget {
+            width: 100%;
+        }
+
+        /* 占位符文本 */
+        .placeholder {
+            color: #999;
+            font-style: italic;
+        }
+
+        #news-list {
+            list-style-type: none;
+            padding-left: 0;
+            margin: 0;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        #news-list li {
+           margin-bottom: 10px;
+            padding-bottom: 10px;
+            border-bottom: 1px dashed #eee;
+        }
+
+        #news-list li:last-child {
+            border-bottom: none;
+        }
+
+        #news-list a {
+            text-decoration: none;
+            color: #337ab7;
+            font-size: 0.95rem;
+        }
+
+        #news-list a:hover {
+            text-decoration: underline;
+        }
+
+        #news-list .publisher {
+            font-size: 0.8rem;
+            color: #888;
+            display: block;
+            margin-top: 4px;
         }
     </style>
 </head>
 <body>
 
-    <h1>黄金ETF (518880.SS) K线图</h1>
-    
-    <div id="chart-container"></div>
+    <h1 style="text-align: center; margin-bottom: 20px;">黄金ETF (518880.SS) 仪表盘</h1>
 
-    <script>
+    <div class="dashboard-container">
+        
+        <div class="main-content">
+            <div id="k-line-card" class="widget-card">
+                <h2>K线图表</h2>
+                <div id="chart-container"></div>
+            </div>
+        </div>
+
+        <div class="sidebar-content">
+            
+            <div id="ai-widget" class="widget-card">
+                <h2>AI分析</h2>
+                <div class="placeholder">
+                    <p>AI 预测信号将在这里显示...</p>
+                    <p>例如: "看涨", "震荡", "看跌"</p>
+                </div>
+            </div>
+
+            <div id="news-widget" class="widget-card">
+                <h2>相关新闻</h2>
+                <div id="news-placeholder" class="placeholder">
+                    <p>黄金相关新闻列表即将上线...</p>
+                </div>
+                <ul id="news-list"></ul> 
+            </div>
+
+        </div>
+
+    </div> <script>
+        async function loadNews() {
+            const API_URL = "http://127.0.0.1:8000/api/gold-news";
+            const listElement = document.getElementById("news-list");
+            const placeholder = document.getElementById("news-placeholder");
+            
+            try {
+                const response = await fetch(API_URL);
+                if (!response.ok) {
+                    throw new Error(`HTTP 错误! 状态: ${response.status}`);
+                }
+                const data = await response.json();
+
+                if (data.success && data.news.length > 0) {
+                    placeholder.style.display = 'none'; // 隐藏占位符
+                    listElement.innerHTML = ''; // 清空列表
+                    
+                    data.news.forEach(item => {
+                        // 创建 <li> 元素
+                        const li = document.createElement('li');
+                        
+                        // 创建 <a> 链接元素
+                        const a = document.createElement('a');
+                        a.href = item.link;
+                        a.textContent = item.title;
+                        a.target = "_blank"; // 在新标签页打开
+                        a.rel = "noopener noreferrer"; // 安全考虑
+                        
+                        // 创建 <small> 发布者元素
+                        const small = document.createElement('small');
+                        small.className = 'publisher';
+                        small.textContent = `来源: ${item.publisher}`;
+                        
+                        // 组装
+                        li.appendChild(a);
+                        li.appendChild(small);
+                        listElement.appendChild(li);
+                    });
+                    
+                } else {
+                    placeholder.textContent = "暂无相关新闻。";
+                }
+
+            } catch (error) {
+                console.error('获取新闻失败:', error);
+                placeholder.textContent = `新闻加载失败: ${error.message}`;
+            }
+        }
+
         // 当页面加载完毕后，立即执行
         document.addEventListener("DOMContentLoaded", function() {
+
+            loadNews();
             
-            // 这是你的后端API地址
             const API_URL = "http://127.0.0.1:8000/api/gold-data";
 
-            // 1. 初始化 ECharts 实例
+            // 1. 初始化 ECharts 实例 (注意: 目标还是 #chart-container)
             var myChart = echarts.init(document.getElementById('chart-container'));
 
-            // 显示一个临时的“加载中”动画
             myChart.showLoading();
 
-            // 2. 使用 fetch API 从你的后端获取数据
+            // 2. 从后端获取数据 (这部分逻辑完全不变)
             fetch(API_URL)
                 .then(response => {
                     if (!response.ok) {
                         throw new Error(`HTTP 错误! 状态: ${response.status}`);
                     }
-                    return response.json(); // 将响应解析为 JSON
+                    return response.json();
                 })
                 .then(apiResponse => {
                     
-                    myChart.hideLoading(); // 隐藏加载动画
+                    myChart.hideLoading();
                     
                     if (!apiResponse.success || !apiResponse.k_line_data) {
                         throw new Error("API返回了错误或数据为空");
                     }
                     
-                    // --- ECharts 配置 ---
-                    // 我们从API拿到了三个关键数据:
-                    // apiResponse.dates       -> ['2020-01-01', '2020-01-02', ...]
-                    // apiResponse.k_line_data -> [ [date, open, close, low, high], ... ]
-                    // apiResponse.volume_data -> [ [date, volume], ... ]
-                    
-                    // ECharts 需要的数据格式:
-                    // K线: [ [open, close, low, high], ... ] (不需要日期)
-                    // 成交量: [ [index, volume], ... ] (用索引对应日期)
-                    // X轴: [ '2020-01-01', '2020-01-02', ... ]
-                    
-                    // 3. 数据处理 (提取 K 线和成交量数据)
-                    // 我们的后端已经把 k_line_data 格式化为 [date, open, close, low, high]
-                    // 我们需要把它转为 ECharts 的 [open, close, low, high]
-                    
+                    // 3. 数据处理 (和之前一样)
                     let kLineData = apiResponse.k_line_data.map(item => [item[1], item[2], item[3], item[4]]);
-                    
-                    // 将成交量数据 [date, volume] 转为 [index, volume]
                     let volumeData = apiResponse.volume_data.map((item, index) => [index, item[1]]);
 
-                    // 4. 定义 ECharts 的“配置项”
+                    // 4. ECharts 的“配置项” (和之前一样)
                     var option = {
-                        title: {
-                            text: '518880.SS (前复权)',
-                            left: 'center'
-                        },
-                        tooltip: {
-                            trigger: 'axis',
-                            axisPointer: { type: 'cross' }
-                        },
-                        legend: {
-                            data: ['K线', 'MA5', 'MA10', 'MA20'],
-                            top: 30
-                        },
-                        // 网格布局 (K线图在上，成交量在下)
+                        // title: { text: '518880.SS (前复权)', left: 'center' }, // 标题我们用卡片的 H2 了
+                        tooltip: { trigger: 'axis', axisPointer: { type: 'cross' } },
+                        legend: { data: ['K线', 'MA5', 'MA10', 'MA20'], top: 0 },
                         grid: [
-                            { left: '10%', right: '8%', height: '50%' }, // K线图的网格
-                            { left: '10%', right: '8%', top: '65%', height: '16%' } // 成交量的网格
+                            { left: '8%', right: '5%', height: '50%' },
+                            { left: '8%', right: '5%', top: '65%', height: '16%' }
                         ],
-                        // X轴 (日期轴)
                         xAxis: [
-                            {
-                                type: 'category',
-                                data: apiResponse.dates, // 使用后端传来的日期列表
-                                gridIndex: 0, // K线图用这个X轴
-                                scale: true,
-                            },
-                            {
-                                type: 'category',
-                                data: apiResponse.dates,
-                                gridIndex: 1, // 成交量用这个X轴
-                                axisLabel: { show: false } // 不显示成交量图的X轴标签
-                            }
+                            { type: 'category', data: apiResponse.dates, gridIndex: 0, scale: true },
+                            { type: 'category', data: apiResponse.dates, gridIndex: 1, axisLabel: { show: false } }
                         ],
-                        // Y轴
                         yAxis: [
-                            {
-                                type: 'value',
-                                gridIndex: 0, // K线图的Y轴
-                                scale: true,
-                                splitLine: { show: true },
-                                axisLabel: { formatter: '{value} CNY' }
-                            },
-                            {
-                                type: 'value',
-                                gridIndex: 1, // 成交量的Y轴
-                                axisLabel: { show: false },
-                                axisTick: { show: false },
-                                splitLine: { show: false }
-                            }
+                            { type: 'value', gridIndex: 0, scale: true, splitLine: { show: true }, axisLabel: { formatter: '{value} CNY' } },
+                            { type: 'value', gridIndex: 1, axisLabel: { show: false }, axisTick: { show: false }, splitLine: { show: false } }
                         ],
-                        // 数据区域缩放
                         dataZoom: [
-                            {
-                                type: 'inside',
-                                xAxisIndex: [0, 1], // 同时缩放K线和成交量
-                                start: 80, // 默认显示后 20% 的数据
-                                end: 100
-                            },
-                            {
-                                type: 'slider',
-                                xAxisIndex: [0, 1],
-                                top: '85%',
-                                start: 80,
-                                end: 100
-                            }
+                            { type: 'inside', xAxisIndex: [0, 1], start: 80, end: 100 },
+                            { type: 'slider', xAxisIndex: [0, 1], top: '85%', start: 80, end: 100 }
                         ],
-                        // 系列 (真正的数据)
                         series: [
                             {
                                 name: 'K线',
                                 type: 'candlestick',
                                 xAxisIndex: 0,
                                 yAxisIndex: 0,
-                                data: kLineData // 使用我们处理好的K线数据
+                                data: kLineData
                             },
                             {
                                 name: '成交量',
                                 type: 'bar',
                                 xAxisIndex: 1,
                                 yAxisIndex: 1,
-                                data: volumeData, // 使用我们处理好的成交量数据
-                                itemStyle: {
-                                    color: '#777'
-                                }
-                            },
-                            // --- 你未来加AI预测的地方 ---
-                            // 比如，你可以在这里加一个 'scatter' (散点图) 系列
-                            // 来绘制买入/卖出信号
+                                data: volumeData,
+                                itemStyle: { color: '#777' }
+                            }
                         ]
-                    };
+                    }; // end option
 
-                    // 5. 应用配置项，把图画出来！
+                    // 5. 应用配置项
                     myChart.setOption(option);
 
                 })
                 .catch(error => {
-                    // 如果获取失败
                     myChart.hideLoading();
-                    console.error('获取数据失败:', error);
+                    console.error('获取K线数据失败:', error);
                     myChart.showLoading({
-                        text: `数据加载失败: ${error.message}`,
+                        text: `K线数据加载失败: ${error.message}`,
                         showSpinner: false
                     });
                 });
