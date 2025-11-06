@@ -1,131 +1,26 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-import yfinance as yf  # <--- 我们换回 yfinance
+import yfinance as yf
 import pandas as pd
 from contextlib import asynccontextmanager
+from typing import Dict, Any
 
-# --- 数据缓存 ---
-cached_data = {
-    "data": pd.DataFrame(),
-    "last_updated": None
-}
+# --- 1. 缓存 (不变) ---
+cached_data: Dict[str, Any] = {}
 
-# --- FastAPI 生命周期事件 ---
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    # --- 服务器启动时执行 ---
-    print("服务器启动... 正在使用 yfinance 加载初始数据...")
-    try:
-        #
-        # --- 关键修改：使用 yfinance 下载数据 ---
-        # "518880.SS" 是华安黄金ETF在雅虎财经的代码
-        # period="max" 下载所有历史数据
-        # auto_adjust=True 自动处理复权
-        #
-        data = yf.download(tickers="518880.SS", period="max", auto_adjust=True)
-        
-        if data.empty:
-            print("警告: 启动时未能从 yfinance 加载数据。")
-        else:
-            # --- 数据格式化 (yfinance 的格式) ---
-            data.reset_index(inplace=True) # yfinance 的 Date 默认在索引里
-            data.rename(columns={
-                'Date': 'Date',   # 'Date' 本来就有
-                'Open': 'Open',   # 'Open' 本来就有
-                'High': 'High',
-                'Low': 'Low',
-                'Close': 'Close',
-                'Volume': 'Volume' # 'Volume' 本来就有
-            }, inplace=True)
-            
-            # 把日期转为 ECharts 需要的 'YYYY-MM-DD' 字符串格式
-            data['Date'] = pd.to_datetime(data['Date']).dt.strftime('%Y-%m-%d')
-            
-            cached_data["data"] = data
-            cached_data["last_updated"] = pd.Timestamp.now()
-            print("数据加载并缓存成功！")
-            
-    except Exception as e:
-        print(f"启动时 yfinance 数据加载失败: {e}")
-        
-    yield
-    # --- 服务器关闭时执行 ---
-    print("服务器关闭。")
-
-# --- 创建 FastAPI 应用 ---
-app = FastAPI(lifespan=lifespan)
-
-# --- 获取黄金相关新闻 ---
-@app.get("/api/gold-news")
-async def get_gold_news():
+# --- 2. 帮助函数：格式化 DataFrame (不变, 仍用小写) ---
+def format_for_echarts(df: pd.DataFrame) -> Dict[str, Any]:
     """
-    提供黄金相关的最新新闻
+    将 Pandas DataFrame 转换为 ECharts 需要的 JSON 格式
+    (使用全小写的列名)
     """
-    try:
-        # 我们用 GLD (全球最大黄金ETF) 作为新闻源，它的英文新闻更多、更及时
-        # yfinance 对非美股的新闻支持有限
-        ticker = yf.Ticker("GLD") 
-        
-        # .news 属性会返回一个字典列表
-        news_list = ticker.news
-        
-        if not news_list:
-            # 如果没有新闻，返回空列表
-            return {"success": True, "news": []}
+    df_clean = df.dropna()
+    df_formatted = df_clean.reset_index() 
+    df_formatted['Date'] = df_formatted['Date'].dt.strftime('%Y-%m-%d')
 
-        # 格式化新闻数据，只选择我们需要的字段
-        formatted_news = []
-        for item in news_list[:10]: # 只取最新的 10 条
-            # 确保关键字段存在
-            if 'title' in item and 'link' in item:
-                formatted_news.append({
-                    "title": item.get('title'),
-                    "link": item.get('link'),
-                    "publisher": item.get('publisher', 'N/A') # 有的可能没有发布者
-                })
-        
-        return {"success": True, "news": formatted_news}
-    
-    except Exception as e:
-        # yfinance 的 .news 属性有时会不稳定
-        print(f"获取新闻失败: {e}")
-        raise HTTPException(status_code=500, detail=f"获取新闻数据失败: {e}")
-
-# --- 配置 CORS 跨域 ---
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"], 
-    allow_credentials=True,
-    allow_methods=["*"], 
-    allow_headers=["*"], 
-)
-
-# --- API 端点 (和之前完全一样) ---
-@app.get("/api/gold-data")
-async def get_gold_data():
-    """
-    提供黄金ETF (518880.SS) 的K线数据 (来自 yfinance 缓存)
-    """
-    if cached_data["data"].empty:
-        # 如果启动时加载失败，尝试在这里再加载一次 (作为后备)
-        print("缓存为空，尝试同步加载数据...")
-        try:
-            data = yf.download(tickers="518880.SS", period="max", auto_adjust=True)
-            if data.empty:
-                raise HTTPException(status_code=504, detail="数据源当前不可用(yfinance)。")
-            data.reset_index(inplace=True)
-            data['Date'] = pd.to_datetime(data['Date']).dt.strftime('%Y-%m-%d')
-            cached_data["data"] = data # 存入缓存
-            print("后备加载成功。")
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"数据加载失败: {e}")
-
-    # 把 Pandas DataFrame 转换为 ECharts 需要的 JSON 格式
-    df = cached_data["data"]
-    
-    k_line_data = df[['Date', 'Open', 'Close', 'Low', 'High']].values.tolist()
-    volume_data = df[['Date', 'Volume']].values.tolist()
-    dates = df['Date'].tolist()
+    k_line_data = df_formatted[['Date', 'open', 'close', 'low', 'high']].values.tolist()
+    volume_data = df_formatted[['Date', 'volume']].values.tolist()
+    dates = df_formatted['Date'].tolist()
     
     return {
         "success": True,
@@ -134,6 +29,107 @@ async def get_gold_data():
         "volume_data": volume_data
     }
 
+# --- 3. 升级版的 'lifespan' (最终修复) ---
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    global cached_data
+    print("服务器启动... 正在加载并处理 K 线数据...")
+    try:
+        # --- 1. 下载日K数据 ---
+        data_daily = yf.download(tickers="518880.SS", period="max", auto_adjust=True)
+        
+        if data_daily.empty:
+            print("警告: yfinance 未能下载日K数据。")
+            yield
+            return
+
+        data_daily.index = pd.to_datetime(data_daily.index)
+
+        # --- 
+        # --- 最终修复：处理 MultiIndex 或 Index ---
+        # ---
+        
+        # 1. 检查是不是 MultiIndex
+        if isinstance(data_daily.columns, pd.MultiIndex):
+            print("检测到 MultiIndex，正在平坦化...")
+            # 如果是 MultiIndex [('Open', ''), ('High', '')],
+            # 我们提取第0层，把它变成 ['Open', 'High']
+            data_daily.columns = data_daily.columns.get_level_values(0)
+
+        # 2. 现在，它 100% 是一个 Simple Index
+        #    我们再安全地执行 .str.lower()
+        print("正在将列名转为小写...")
+        data_daily.columns = data_daily.columns.str.lower()
+        # 现在列名绝对是: 'open', 'high', 'low', 'close', 'volume'
+        
+        # --- 
+        # --- 修复结束 ---
+        # ---
+
+        # --- 2. 计算 周K 和 月K (使用小写) ---
+        print("正在计算周K和月K...")
+        agg_rules = {
+            'open': 'first',
+            'high': 'max',
+            'low': 'min',
+            'close': 'last',
+            'volume': 'sum'
+        }
+        
+        data_weekly = data_daily.resample('W').agg(agg_rules)
+        data_monthly = data_daily.resample('ME').agg(agg_rules)
+
+        # --- 3. 格式化并缓存 ---
+        print("正在格式化并缓存数据...")
+        cached_data['daily'] = format_for_echarts(data_daily.copy())
+        cached_data['weekly'] = format_for_echarts(data_weekly.copy())
+        cached_data['monthly'] = format_for_echarts(data_monthly.copy())
+        
+        print("---")
+        print("日K, 周K, 月K 数据已全部加载并缓存！")
+        print("---")
+        
+    except Exception as e:
+        print("--- !!! 启动时数据加载失败 !!! ---")
+        print(f"错误: {e}")
+        import traceback
+        traceback.print_exc() # 打印完整的错误堆栈
+        
+    yield
+    print("服务器关闭。")
+
+# --- 4. 创建 FastAPI 应用 (不变) ---
+app = FastAPI(lifespan=lifespan)
+
+# --- 5. 配置 CORS (不变) ---
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"], 
+    allow_credentials=True,
+    allow_methods=["*"], 
+    allow_headers=["*"], 
+)
+
+# --- 6. 升级版的 K 线 API (不变) ---
+@app.get("/api/gold-data")
+async def get_gold_data(period: str = "daily"): 
+    
+    if period not in cached_data:
+        valid_periods = ", ".join(cached_data.keys())
+        raise HTTPException(
+            status_code=400, 
+            detail=f"无效的 'period' 参数。请使用: {valid_periods}"
+        )
+    
+    if not cached_data[period]:
+         raise HTTPException(
+            status_code=500, 
+            detail=f"数据源错误: {period} 数据未能成功加载到缓存。"
+        )
+
+    return cached_data[period]
+
+# --- 7. (不变) ---
 @app.get("/")
 def read_root():
-    return {"message": "欢迎来到黄金数据API，请访问 /api/gold-data 获取数据"}
+    return {"message": "欢迎来到黄金数据API v2。请访问 /api/gold-data?period=..."}
