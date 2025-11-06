@@ -3,11 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SGE 黄金仪表盘 (v4.6 - 真正修复分时)</title>
+    <title>SGE 黄金仪表盘 (v4.15 - 中文提示框)</title>
     <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
     
     <style>
-        /* --- ... (所有 CSS 保持不变) ... --- */
+        /* --- (CSS 保持不变) --- */
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
             background-color: #f0f2f5; margin: 0; padding: 10px; color: #333;
@@ -90,35 +90,98 @@
                 </div>
             </div>
         </div>
-    </div> <script>
+    </div> 
+    
+    <script>
         document.addEventListener("DOMContentLoaded", function() {
             
             const API_BASE_URL = ""; 
             const chartContainer = document.getElementById('chart-container');
             const myChart = echarts.init(chartContainer);
             
-            // --- 1. K线图模板 (不变) ---
+            // --- 1. K线图模板 (已更新: 中文 tooltip) ---
             const kLineOptionTemplate = {
-                tooltip: { trigger: 'axis', axisPointer: { type: 'cross' } },
-                legend: { data: ['K线'], top: 0 },
+                // (关键修改) 添加了 formatter 函数
+                tooltip: { 
+                    trigger: 'axis', 
+                    axisPointer: { type: 'cross' },
+                    formatter: function (params) {
+                        // params 是一个数组, 包含了 K线, MA5, MA10, MA20 在这一个
+                        // x 轴(日期)点上的所有数据
+                        
+                        // 1. 获取日期 (所有 series 共享)
+                        let date = params[0].name;
+                        let tooltipHtml = `${date}<br/>`; // e.g., "2025-11-07"
+
+                        // 2. 遍历所有 series (K线, MA5...)
+                        params.forEach(param => {
+                            let seriesName = param.seriesName;
+                            let color = param.color; // 系列的颜色
+                            let value = param.value;
+                            
+                            // (样式) 添加彩色小圆点标记
+                            let marker = `<span style="display:inline-block;margin-right:5px;border-radius:10px;width:10px;height:10px;background-color:${color};"></span>`;
+                            
+                            if (seriesName === 'K线') {
+                                // K 线的数据是一个数组: [open, close, low, high]
+                                // 在我们的 `loadKLineData` 中已经处理过了
+                                // value[0] = open, value[1] = close, value[2] = low, value[3] = high
+                                tooltipHtml += `${marker} <strong>${seriesName}</strong><br/>`;
+                                tooltipHtml += `  开盘价: <strong>${value[0]}</strong><br/>`;
+                                tooltipHtml += `  收盘价: <strong>${value[1]}</strong><br/>`;
+                                tooltipHtml += `  最低价: <strong>${value[2]}</strong><br/>`;
+                                tooltipHtml += `  最高价: <strong>${value[3]}</strong><br/>`;
+                            } else if (seriesName.startsWith('MA')) {
+                                // MA 线的数据是一个单独的数值
+                                // 过滤掉 null/undefined 值 (比如 MA 线刚开始的时候)
+                                if (value !== null && value !== undefined) { 
+                                     tooltipHtml += `${marker} ${seriesName}: <strong>${value}</strong><br/>`;
+                                }
+                            }
+                        });
+                        
+                        return tooltipHtml;
+                    }
+                },
+                legend: { data: ['K线', 'MA5', 'MA10', 'MA20'], top: 0 },
                 grid: [ { left: '10%', right: '8%', height: '65%' } ],
                 xAxis: [ { type: 'category', data: [], gridIndex: 0, scale: true } ],
                 yAxis: [ { type: 'value', gridIndex: 0, scale: true, splitLine: { show: true }, axisLabel: { formatter: '{value} CNY' } } ],
                 dataZoom: [ { type: 'inside', xAxisIndex: [0] }, { type: 'slider', xAxisIndex: [0], top: '85%' } ],
-                series: [ { name: 'K线', type: 'candlestick', xAxisIndex: 0, yAxisIndex: 0, data: [],
+                series: [ 
+                    { 
+                        name: 'K线', type: 'candlestick', 
+                        xAxisIndex: 0, yAxisIndex: 0, data: [],
                         markPoint: {
                             symbol: 'pin', symbolSize: 50, label: { show: true, fontSize: 10, color: '#fff' },
                             data: [ { type: 'max', valueDim: 'highest' }, { type: 'min', valueDim: 'lowest' } ]
                         }
-                    } ]
+                    },
+                    {
+                        name: 'MA5', type: 'line', 
+                        xAxisIndex: 0, yAxisIndex: 0, data: [],
+                        smooth: true, showSymbol: false, lineStyle: { width: 1, opacity: 0.8 }
+                    },
+                    {
+                        name: 'MA10', type: 'line', 
+                        xAxisIndex: 0, yAxisIndex: 0, data: [],
+                        smooth: true, showSymbol: false, lineStyle: { width: 1, opacity: 0.8 }
+                    },
+                    {
+                        name: 'MA20', type: 'line', 
+                        xAxisIndex: 0, yAxisIndex: 0, data: [],
+                        smooth: true, showSymbol: false, lineStyle: { width: 1, opacity: 0.8 }
+                    }
+                ]
             };
             
-            // --- 2. 分时图模板 (不变) ---
+            // --- 2. 分时图模板 (带断线修复) ---
             const intradayOptionTemplate = {
                 tooltip: { 
                     trigger: 'axis',
                     formatter: function (params) {
                         var param = params[0];
+                        if (!param || param.value[1] === '-') { return null; } // 过滤掉空值
                         var date = new Date(param.value[0]);
                         var time = [date.getHours(), date.getMinutes(), date.getSeconds()].map(function (n) {
                             return n < 10 ? '0' + n : n;
@@ -127,10 +190,7 @@
                     }
                 },
                 grid: [ { left: '10%', right: '8%', height: '65%' } ],
-                xAxis: [
-                    { 
-                        type: 'time',
-                        scale: true,
+                xAxis: [ { type: 'time', scale: true,
                         axisLabel: {
                             formatter: function (value) {
                                 var date = new Date(value);
@@ -146,7 +206,7 @@
                 series: [
                     {
                         name: '价格', type: 'line', showSymbol: false, smooth: true, data: [],
-                        connectNulls: false,
+                        connectNulls: false, // 核心: 不连接空值
                         markPoint: {
                             symbol: 'pin', symbolSize: 50, label: { show: true, fontSize: 10, color: '#fff' },
                             data: [ { type: 'max', name: '最高价' }, { type: 'min', name: '最低价' } ]
@@ -155,7 +215,7 @@
                 ]
             };
 
-            // --- 3. 加载K线图函数 (不变) ---
+            // --- 3. 加载K线图函数 (加载MA数据) ---
             async function loadKLineData(period) {
                 myChart.showLoading(); 
                 try {
@@ -163,21 +223,32 @@
                     if (!response.ok) throw new Error(`HTTP 错误! 状态: ${response.status}`);
                     const apiResponse = await response.json();
                     if (!apiResponse.success) throw new Error("API返回了K线错误");
+                    
+                    // (修复) ECharts K线数据不需要 Date, 只需 [open, close, low, high]
                     let kLineData = apiResponse.k_line_data.map(item => [item[1], item[2], item[3], item[4]]);
+                    
                     const zoomLevels = { 'daily': 99, 'weekly': 93, 'monthly': 70 };
-                    myChart.setOption(kLineOptionTemplate, true); 
+                    
+                    myChart.setOption(kLineOptionTemplate, true); // 清空并应用模板
+                    
                     myChart.setOption({
                         xAxis: [ { data: apiResponse.dates } ],
-                        series: [ { data: kLineData } ],
+                        series: [ 
+                            { name: 'K线', data: kLineData },
+                            { name: 'MA5', data: apiResponse.ma5 },
+                            { name: 'MA10', data: apiResponse.ma10 },
+                            { name: 'MA20', data: apiResponse.ma20 }
+                        ],
                         dataZoom: [ { start: zoomLevels[period], end: 100 }, { start: zoomLevels[period], end: 100 } ]
                     });
+                    
                     myChart.hideLoading(); 
                 } catch (error) {
                     myChart.showLoading({ text: `K线数据加载失败`, showSpinner: false });
                 }
             } 
 
-            // --- 4. 加载分时图函数 (已修复) ---
+            // --- 4. 加载分时图函数 (带断线修复) ---
             async function loadIntradayData() {
                 myChart.showLoading();
                 try {
@@ -188,41 +259,29 @@
                         throw new Error("API返回了无效的分时数据");
                     }
 
-                    // --- *** (新增) SGE 断线修复逻辑 *** ---
+                    // SGE 断线修复逻辑
                     const processedData = [];
-                    // 定义一个时间间隔 (例如 60 分钟), 用于检测数据点之间的间隔
-                    const GAP_THRESHOLD_MINUTES = 60; 
-                    
+                    const GAP_THRESHOLD_MINUTES = 60; // 超过60分钟
                     let lastTime = 0;
 
                     for (let i = 0; i < apiResponse.data.length; i++) {
                         const point = apiResponse.data[i];
                         const currentTime = new Date(point[0]).getTime();
-
                         if (i > 0) {
                             const gapInMinutes = (currentTime - lastTime) / (1000 * 60);
-                            
-                            // 如果时间间隔超过阈值, 则插入缺失点
                             if (gapInMinutes > GAP_THRESHOLD_MINUTES) {
-                                
                                 processedData.push([new Date(lastTime + 1000), '-']);
                             }
                         }
-                        
                         processedData.push(point); 
                         lastTime = currentTime; 
                     }
-                    // --- *** 修复逻辑结束 *** ---
+                    // 断线修复逻辑结束
 
                     myChart.setOption(intradayOptionTemplate, true); 
-                    
                     myChart.setOption({
-                        series: [ 
-                            // 使用处理后的数据 (processedData) 替代 API 返回的原始数据 (apiResponse.data)
-                            { data: processedData } 
-                        ] 
+                        series: [ { data: processedData } ] 
                     });
-                    
                     myChart.hideLoading();
                 } catch (error) {
                     console.error("分时图加载失败:", error);
@@ -242,7 +301,7 @@
                 });
             });
             
-            // --- 6. (不变) 加载实时报价 ---
+            // --- 6. 加载实时报价 ---
             const quoteContent = document.getElementById('realtime-content');
             async function loadRealtimeQuote() {
                 try {
@@ -259,10 +318,12 @@
                 } catch (error) { /* 静默处理错误 */ }
             } 
             
-            // --- 7. 初始加载 (不变) ---
+            // --- 7. 初始加载 (已移除 AI) ---
             loadIntradayData(); 
             loadRealtimeQuote(); 
-            setInterval(loadRealtimeQuote, 10000); 
+            
+            setInterval(loadRealtimeQuote, 10000); // 10秒刷新
+            
             window.addEventListener('resize', () => myChart.resize());
             
         });
