@@ -4,11 +4,13 @@ import akshare as ak
 import pandas as pd
 from contextlib import asynccontextmanager
 from typing import Dict, Any, List
+from fastapi.responses import FileResponse  # <-- *** 1. 导入这个 ***
+import os # <-- 导入 os 来处理文件路径
 
-# --- 1. 缓存 (用于K线) ---
+# --- 缓存 (不变) ---
 cached_data: Dict[str, Any] = {}
 
-# --- 2. 帮助函数：格式化 K 线 (不变) ---
+# --- 帮助函数：格式化 K 线 (不变) ---
 def format_for_echarts_kline(df: pd.DataFrame) -> Dict[str, Any]:
     df_clean = df.dropna()
     df_formatted = df_clean.reset_index() 
@@ -20,7 +22,7 @@ def format_for_echarts_kline(df: pd.DataFrame) -> Dict[str, Any]:
         "success": True, "dates": dates, "k_line_data": k_line_data
     }
 
-# --- 3. 'lifespan' (K线缓存, 不变) ---
+# --- 'lifespan' (K线缓存, 不变) ---
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global cached_data
@@ -29,19 +31,13 @@ async def lifespan(app: FastAPI):
     try:
         data_daily = ak.spot_hist_sge(symbol="Au99.99")
         if data_daily.empty:
-            print("致命错误: AkShare 未能下载 SGE 'Au99.99' 历史K线。")
-            yield; return
+            print("致命错误: AkShare 未能下载 SGE 'Au99.99' 历史K线。"); yield; return
 
         print("SGE Au99.99 历史K线下载成功！")
         
-        data_daily.rename(columns={
-            'date': 'Date', 'open': 'open', 'close': 'close',
-            'high': 'high', 'low': 'low'
-        }, inplace=True)
-        
+        data_daily.rename(columns={'date': 'Date', 'open': 'open', 'close': 'close', 'high': 'high', 'low': 'low'}, inplace=True)
         data_daily['Date'] = pd.to_datetime(data_daily['Date'])
         data_daily.set_index('Date', inplace=True)
-        
         cols_to_numeric = ['open', 'close', 'high', 'low']
         data_daily[cols_to_numeric] = data_daily[cols_to_numeric].apply(pd.to_numeric, errors='coerce')
 
@@ -65,10 +61,11 @@ async def lifespan(app: FastAPI):
     yield
     print("服务器关闭。")
 
-# --- 4. 创建 FastAPI 应用 (不变) ---
+# --- 创建 FastAPI 应用 (不变) ---
 app = FastAPI(lifespan=lifespan)
 
-# --- 5. 配置 CORS (不变) ---
+# --- 配置 CORS (不变) ---
+# (这个仍然需要, 以防万一)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"], 
@@ -77,7 +74,9 @@ app.add_middleware(
     allow_headers=["*"], 
 )
 
-# --- 6. K 线 API (不变) ---
+# --- 
+# --- *** 2. 定义我们的 API 路由 (K线, 分时, 实时) ***
+# --- 
 @app.get("/api/gold-data")
 async def get_gold_data(period: str = "daily"): 
     if period not in cached_data:
@@ -86,68 +85,43 @@ async def get_gold_data(period: str = "daily"):
          raise HTTPException(status_code=500, detail="数据源错误: K线缓存未加载。")
     return cached_data[period]
 
-#
-# --- *** 7. 新增 API：SGE 分时图 (Intraday) *** ---
-#
 @app.get("/api/gold-intraday")
 async def get_gold_intraday():
-    """
-    提供 SGE Au99.99 的 *今日* 分时图数据
-    使用 spot_quotations_sge 接口
-    """
     try:
-        # 实时调用, 不缓存
         data_df = ak.spot_quotations_sge(symbol="Au99.99")
-        
         if data_df.empty:
             return {"success": False, "data": []}
-
-        # 我们需要的数据: '时间' 和 '现价'
-        # 格式化为 ECharts 需要的 [时间, 价格] 列表
         intraday_data = []
         for index, row in data_df.iterrows():
-            intraday_data.append([
-                row['时间'],  # X 轴: '09:00:00'
-                row['现价']   # Y 轴: 913.0
-            ])
-            
+            intraday_data.append([ row['时间'], row['现价'] ])
         return {"success": True, "data": intraday_data}
-        
     except Exception as e:
-        print(f"获取 SGE 分时图失败: {e}")
         raise HTTPException(status_code=500, detail=f"获取分时数据失败: {e}")
 
-#
-# --- *** 8. 新增 API：SGE 实时报价 (Real-time) *** ---
-#
 @app.get("/api/gold-realtime-quote")
 async def get_gold_realtime_quote():
-    """
-    提供 SGE Au99.99 的 *最新* 实时报价
-    """
     try:
-        # 实时调用
         data_df = ak.spot_quotations_sge(symbol="Au99.99")
-        
         if data_df.empty:
             raise HTTPException(status_code=404, detail="未返回实时数据")
-
-        # 获取最后一行 (最新的报价)
         latest_quote = data_df.iloc[-1]
-        
-        # S换为字典并返回
         return {
-            "success": True,
-            "price": latest_quote['现价'],
-            "time": latest_quote['时间'],
-            "update_time": latest_quote['更新时间']
+            "success": True, "price": latest_quote['现价'],
+            "time": latest_quote['时间'], "update_time": latest_quote['更新时间']
         }
-        
     except Exception as e:
-        print(f"获取 SGE 实时报价失败: {e}")
         raise HTTPException(status_code=500, detail=f"获取实时报价失败: {e}")
 
-# --- 9. (不变) ---
+# --- 
+# --- *** 3. (核心修改) 定义我们的前端路由 ***
+# --- 
+# (我们假设 'frontend' 文件夹在 'backend' 文件夹的上一层)
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+FRONTEND_DIR = os.path.abspath(os.path.join(BASE_DIR, "..", "frontend"))
+
 @app.get("/")
-def read_root():
-    return {"message": "欢迎来到黄金数据API v4 (SGE 纯享版)"}
+async def read_index():
+    """
+    当用户访问根目录时, 返回 index.html 文件
+    """
+    return FileResponse(os.path.join(FRONTEND_DIR, "index.html"))
