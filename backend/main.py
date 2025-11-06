@@ -4,13 +4,13 @@ import akshare as ak
 import pandas as pd
 from contextlib import asynccontextmanager
 from typing import Dict, Any, List
-from fastapi.responses import FileResponse  # <-- *** 1. 导入这个 ***
-import os # <-- 导入 os 来处理文件路径
+from fastapi.responses import FileResponse  # <-- 1. 重新加回 FileResponse
+import os  # <-- 2. 重新加回 os
 
-# --- 缓存 (不变) ---
+# --- 1. 缓存 (用于K线) ---
 cached_data: Dict[str, Any] = {}
 
-# --- 帮助函数：格式化 K 线 (不变) ---
+# --- 2. 帮助函数：格式化 K 线 (不变) ---
 def format_for_echarts_kline(df: pd.DataFrame) -> Dict[str, Any]:
     df_clean = df.dropna()
     df_formatted = df_clean.reset_index() 
@@ -22,7 +22,7 @@ def format_for_echarts_kline(df: pd.DataFrame) -> Dict[str, Any]:
         "success": True, "dates": dates, "k_line_data": k_line_data
     }
 
-# --- 'lifespan' (K线缓存, 不变) ---
+# --- 3. 'lifespan' (K线缓存, 不变) ---
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global cached_data
@@ -54,18 +54,17 @@ async def lifespan(app: FastAPI):
         print("--- SGE K线数据已缓存！ ---")
         
     except Exception as e:
-        print(f"--- !!! 启动时数据加载失败 !!! --- \n错误: {e}")
+        print(f"--- !!! 启动时数据加载失败 !!! ---\n错误: {e}")
         import traceback
         traceback.print_exc()
         
     yield
     print("服务器关闭。")
 
-# --- 创建 FastAPI 应用 (不变) ---
+# --- 4. 创建 FastAPI 应用 (不变) ---
 app = FastAPI(lifespan=lifespan)
 
-# --- 配置 CORS (不变) ---
-# (这个仍然需要, 以防万一)
+# --- 5. 配置 CORS (不变) ---
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"], 
@@ -75,7 +74,7 @@ app.add_middleware(
 )
 
 # --- 
-# --- *** 2. 定义我们的 API 路由 (K线, 分时, 实时) ***
+# --- *** 6. 所有的 API 路由 ***
 # --- 
 @app.get("/api/gold-data")
 async def get_gold_data(period: str = "daily"): 
@@ -91,9 +90,17 @@ async def get_gold_intraday():
         data_df = ak.spot_quotations_sge(symbol="Au99.99")
         if data_df.empty:
             return {"success": False, "data": []}
+            
+        update_time_str = data_df.iloc[0]['更新时间']
+        parsed_datetime = pd.to_datetime(update_time_str, format='%Y年%m月%d日 %H:%M:%S')
+        current_date_str = parsed_datetime.strftime('%Y-%m-%d')
+        
         intraday_data = []
         for index, row in data_df.iterrows():
-            intraday_data.append([ row['时间'], row['现价'] ])
+            time_str = row['时间']
+            full_timestamp = f"{current_date_str}T{time_str}"
+            intraday_data.append([full_timestamp, row['现价']])
+            
         return {"success": True, "data": intraday_data}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"获取分时数据失败: {e}")
@@ -113,7 +120,7 @@ async def get_gold_realtime_quote():
         raise HTTPException(status_code=500, detail=f"获取实时报价失败: {e}")
 
 # --- 
-# --- *** 3. (核心修改) 定义我们的前端路由 ***
+# --- *** 7. (核心修复) 定义我们的前端路由 ***
 # --- 
 # (我们假设 'frontend' 文件夹在 'backend' 文件夹的上一层)
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -124,4 +131,13 @@ async def read_index():
     """
     当用户访问根目录时, 返回 index.html 文件
     """
-    return FileResponse(os.path.join(FRONTEND_DIR, "index.html"))
+    html_file_path = os.path.join(FRONTEND_DIR, "index.html")
+    
+    # S加一个S查, S保文件存在
+    if not os.path.exists(html_file_path):
+         print(f"--- 致命错误: 在S个路径S找不到 index.html ---")
+         print(f"--- S在S找: {html_file_path} ---")
+         print(f"--- S保 S的 'frontend' S S S 'backend' S S S S S S ---")
+         return {"message": "错误: index.html 文件未找到！", "path": html_file_path}
+         
+    return FileResponse(html_file_path)
