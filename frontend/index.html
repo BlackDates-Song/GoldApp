@@ -3,24 +3,18 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SGE 黄金仪表盘 (v3.0)</title>
+    <title>SGE 黄金仪表盘 (v4.1 - S加极值)</title>
     <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
     
     <style>
-        /* --- CSS (不变, 但成交量相关的CSS已失效) --- */
+        /* --- 所有 CSS (和之前完全一样) --- */
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
             background-color: #f0f2f5; margin: 0; padding: 20px; color: #333;
         }
-        .dashboard-container {
-            display: flex; flex-wrap: wrap; width: 100%; max-width: 1600px; margin: 0 auto;
-        }
-        .main-content {
-            flex: 7; min-width: 600px; padding-right: 20px; box-sizing: border-box; 
-        }
-        .sidebar-content {
-            flex: 3; min-width: 300px; display: flex; flex-direction: column; gap: 20px; 
-        }
+        .dashboard-container { display: flex; flex-wrap: wrap; width: 100%; max-width: 1600px; margin: 0 auto; }
+        .main-content { flex: 7; min-width: 600px; padding-right: 20px; box-sizing: border-box; }
+        .sidebar-content { flex: 3; min-width: 300px; display: flex; flex-direction: column; gap: 20px; }
         .widget-card {
             background-color: #ffffff; border: 1px solid #e8e8e8; border-radius: 8px;
             box-shadow: 0 2px 8px rgba(0,0,0,0.05); padding: 20px; box-sizing: border-box;
@@ -32,8 +26,7 @@
         #k-line-card { width: 100%; }
         #chart-container { width: 100%; height: 600px; }
         .placeholder { color: #999; font-style: italic; }
-        
-        #k-line-controls { display: flex; gap: 10px; margin-bottom: 15px; }
+        #k-line-controls { display: flex; gap: 10px; margin-bottom: 15px; flex-wrap: wrap;}
         .k-line-button {
             padding: 8px 16px; font-size: 0.9rem; border: 1px solid #d9d9d9;
             background-color: #fff; color: #555; border-radius: 4px; cursor: pointer;
@@ -41,6 +34,12 @@
         }
         .k-line-button:hover { border-color: #40a9ff; color: #40a9ff; }
         .k-line-button.active { background-color: #1890ff; color: #fff; border-color: #1890ff; }
+        #realtime-quote-widget { width: 100%; }
+        .realtime-price {
+            font-size: 2.5rem; font-weight: bold; color: #ff4d4f; margin-bottom: 10px;
+        }
+        .realtime-time { font-size: 0.9rem; color: #888; }
+        #ai-widget { width: 100%; }
     </style>
 </head>
 <body>
@@ -51,133 +50,219 @@
         
         <div class="main-content">
             <div id="k-line-card" class="widget-card">
-                <h2>K线图表</h2>
+                <h2>图表</h2>
                 <div id="k-line-controls">
-                    <button class="k-line-button active" data-period="daily">日K</button>
-                    <button class="k-line-button" data-period="weekly">周K</button>
-                    <button class="k-line-button" data-period="monthly">月K</button>
+                    <button class="k-line-button active" data-type="intraday">分时</button>
+                    <button class="k-line-button" data-type="kline" data-period="daily">日K</button>
+                    <button class="k-line-button" data-type="kline" data-period="weekly">周K</button>
+                    <button class="k-line-button" data-type="kline" data-period="monthly">月K</button>
                 </div>
                 <div id="chart-container"></div>
             </div>
         </div>
 
         <div class="sidebar-content">
+            <div id="realtime-quote-widget" class="widget-card">
+                <h2>实时行情 (Au99.99)</h2>
+                <div id="realtime-content">
+                    <div class="placeholder">正在加载实时价格...</div>
+                </div>
+            </div>
             <div id="ai-widget" class="widget-card">
                 <h2>AI分析</h2>
                 <div class="placeholder">
                     <p>AI 预测信号将在这里显示...</p>
                 </div>
             </div>
-            <div id="info-widget" class="widget-card">
-                <h2>信息</h2>
-                <div class="placeholder">
-                    <p>数据源: AkShare (SGE)</p>
-                    <p>标的: Au99.99 现货</p>
-                </div>
-            </div>
         </div>
-
     </div> <script>
         document.addEventListener("DOMContentLoaded", function() {
             
             const API_BASE_URL = "http://127.0.0.1:8000";
             const chartContainer = document.getElementById('chart-container');
-            if (!chartContainer) { console.error("无法找到 #chart-container！"); return; }
-            
             const myChart = echarts.init(chartContainer);
             
-            const zoomLevels = {
-                'daily': { start: 99, end: 100 }, 
-                'weekly': { start: 90, end: 100 }, 
-                'monthly': { start: 75, end: 100 }  
-            };
-            
-            // --- *** 关键修改：ECharts模板已简化 *** ---
-            const chartOptionTemplate = {
+            // --- 1. K线图的“配置模板” ---
+            const kLineOptionTemplate = {
                 tooltip: { trigger: 'axis', axisPointer: { type: 'cross' } },
                 legend: { data: ['K线'], top: 0 },
-                
-                // 我们不再需要两个 grid, 只需要一个
-                grid: [
-                    { left: '10%', right: '8%', height: '65%' } // K线图占满
-                ],
-                // 只有一个 X 轴
-                xAxis: [
-                    { type: 'category', data: [], gridIndex: 0, scale: true }
-                ],
-                // 只有一个 Y 轴
-                yAxis: [
-                    { type: 'value', gridIndex: 0, scale: true, splitLine: { show: true }, axisLabel: { formatter: '{value} CNY' } }
-                ],
-                
-                // dataZoom 现在只控制索引为 0 的轴
+                grid: [ { left: '10%', right: '8%', height: '65%' } ],
+                xAxis: [ { type: 'category', data: [], gridIndex: 0, scale: true } ],
+                yAxis: [ { type: 'value', gridIndex: 0, scale: true, splitLine: { show: true }, axisLabel: { formatter: '{value} CNY' } } ],
                 dataZoom: [
-                    { type: 'inside', xAxisIndex: [0], start: 80, end: 100 },
-                    { type: 'slider', xAxisIndex: [0], top: '85%', start: 80, end: 100 }
+                    { type: 'inside', xAxisIndex: [0] },
+                    { type: 'slider', xAxisIndex: [0], top: '85%' }
                 ],
-                
-                // 只有一个 series
                 series: [
-                    { name: 'K线', type: 'candlestick', xAxisIndex: 0, yAxisIndex: 0, data: [] }
-                    // '成交量' Bar 图已被移除
+                    { 
+                        name: 'K线', 
+                        type: 'candlestick', 
+                        xAxisIndex: 0, 
+                        yAxisIndex: 0, 
+                        data: [],
+                        
+                        // --- *** S加 K线图 的最高/最低点 *** ---
+                        markPoint: {
+                            symbol: 'pin', // 标记的形状
+                            symbolSize: 50, // 标记的大小
+                            label: {
+                                show: true,
+                                fontSize: 10,
+                                color: '#fff' // 标记S的文字颜色
+                            },
+                            data: [
+                                // valueDim: 'highest' 告诉 ECharts S K线的 "high" 值
+                                { type: 'max', valueDim: 'highest', name: '最高点' },
+                                // valueDim: 'lowest' 告诉 ECharts S K线的 "low" 值
+                                { type: 'min', valueDim: 'lowest', name: '最低点' }
+                            ]
+                        }
+                    }
                 ]
             };
             
-            // --- 2. 核心函数：加载并更新图表数据 ---
-            async function loadChartData(period) {
-                console.log(`正在请求 ${period} 数据...`);
+            // --- 2. 分时图的“配置模板” ---
+            const intradayOptionTemplate = {
+                tooltip: { trigger: 'axis' },
+                grid: [ { left: '10%', right: '8%', height: '65%' } ],
+                xAxis: [ { type: 'category', data: [], scale: true } ],
+                yAxis: [ { type: 'value', scale: true, axisLabel: { formatter: '{value} CNY' } } ],
+                dataZoom: [
+                    { type: 'inside', xAxisIndex: [0], start: 0, end: 100 },
+                    { type: 'slider', xAxisIndex: [0], top: '85%', start: 0, end: 100 }
+                ],
+                series: [
+                    {
+                        name: '价格',
+                        type: 'line', 
+                        showSymbol: false, 
+                        smooth: true, 
+                        data: [],
+                        
+                        // --- *** S加 分时图 的最高/最低点 *** ---
+                        markPoint: {
+                            symbol: 'pin',
+                            symbolSize: 50,
+                            label: {
+                                show: true,
+                                fontSize: 10,
+                                color: '#fff'
+                            },
+                            data: [
+                                // 对折线图, 'max' 'min' S自动S Y 轴
+                                { type: 'max', name: '最高价' },
+                                { type: 'min', name: '最低价' }
+                            ]
+                        }
+                    }
+                ]
+            };
+
+            // --- 3. 加载 K线图 (日/周/月) 的函数 ---
+            async function loadKLineData(period) {
+                console.log(`正在请求 K线 ${period} 数据...`);
                 myChart.showLoading(); 
-                
                 try {
                     const response = await fetch(`${API_BASE_URL}/api/gold-data?period=${period}`);
                     if (!response.ok) throw new Error(`HTTP 错误! 状态: ${response.status}`);
                     
                     const apiResponse = await response.json();
-                    if (!apiResponse.success) throw new Error("API返回了错误或数据为空");
+                    if (!apiResponse.success) throw new Error("API返回了K线错误");
                     
-                    // --- *** 关键修改：不再处理 volumeData *** ---
                     let kLineData = apiResponse.k_line_data.map(item => [item[1], item[2], item[3], item[4]]);
-                    // let volumeData = ... (已移除)
+                    const zoomLevels = { 'daily': 99, 'weekly': 90, 'monthly': 65 };
                     
-                    const newZoom = zoomLevels[period]; 
+                    // (不变) S K线模板
+                    myChart.setOption(kLineOptionTemplate, true); 
                     
+                    // (不变) 更新 K线 数据和缩放
                     myChart.setOption({
-                        xAxis: [
-                            { data: apiResponse.dates } // 更新X轴
-                        ],
-                        series: [
-                            { data: kLineData } // 更新K线数据
-                        ],
+                        xAxis: [ { data: apiResponse.dates } ],
+                        series: [ { data: kLineData } ], // S自动S用模板里的 markPoint
                         dataZoom: [
-                            { type: 'inside', xAxisIndex: [0], start: newZoom.start, end: newZoom.end },
-                            { type: 'slider', xAxisIndex: [0], top: '85%', start: newZoom.start, end: newZoom.end }
+                            { start: zoomLevels[period], end: 100 },
+                            { start: zoomLevels[period], end: 100 }
                         ]
                     });
                     
                     myChart.hideLoading(); 
-                    
                 } catch (error) {
-                    console.error(`加载 ${period} 数据失败:`, error);
-                    myChart.hideLoading();
-                    myChart.showLoading({ text: `数据加载失败: ${error.message}`, showSpinner: false });
+                    console.error(`加载 K线 ${period} 数据失败:`, error);
+                    myChart.showLoading({ text: `K线数据加载失败`, showSpinner: false });
                 }
-            } // end loadChartData
+            } // end loadKLineData
+
+            // --- 4. 加载 分时图 (今日) 的函数 ---
+            async function loadIntradayData() {
+                console.log(`正在请求 分时 数据...`);
+                myChart.showLoading();
+                try {
+                    const response = await fetch(`${API_BASE_URL}/api/gold-intraday`);
+                    if (!response.ok) throw new Error(`HTTP 错误! 状态: ${response.status}`);
+                    
+                    const apiResponse = await response.json();
+                    if (!apiResponse.success) throw new Error("API返回了分时错误");
+                    
+                    const dates = apiResponse.data.map(item => item[0]);
+                    
+                    // (不变) S 分时模板
+                    myChart.setOption(intradayOptionTemplate, true); 
+                    
+                    // (不变) 更新 分时 数据
+                    myChart.setOption({
+                        xAxis: [ { data: dates } ],
+                        series: [ { data: apiResponse.data } ] // S自动S用模板里的 markPoint
+                    });
+                    
+                    myChart.hideLoading();
+                } catch (error) {
+                    console.error(`加载 分时 数据失败:`, error);
+                    myChart.showLoading({ text: `分时数据加载失败`, showSpinner: false });
+                }
+            } // end loadIntradayData
             
             
-            // --- 4. 绑定按钮事件 (不变) ---
+            // --- 5. 绑定所有按钮事件 (不变) ---
             const controlButtons = document.querySelectorAll('.k-line-button');
             controlButtons.forEach(button => {
                 button.addEventListener('click', () => {
-                    const period = button.dataset.period; 
+                    const type = button.dataset.type; 
                     controlButtons.forEach(btn => btn.classList.remove('active'));
                     button.classList.add('active');
-                    loadChartData(period);
+                    if (type === 'intraday') {
+                        loadIntradayData();
+                    } else if (type === 'kline') {
+                        const period = button.dataset.period; 
+                        loadKLineData(period);
+                    }
                 });
             });
             
-            // --- 5. 初始加载 (不变) ---
-            myChart.setOption(chartOptionTemplate); 
-            loadChartData('daily'); 
+            // --- 6. (不变) 加载实时报价的函数 ---
+            const quoteContent = document.getElementById('realtime-content');
+            async function loadRealtimeQuote() {
+                try {
+                    const response = await fetch(`${API_BASE_URL}/api/gold-realtime-quote`);
+                    if (!response.ok) return; 
+                    const data = await response.json();
+                    if (data.success) {
+                        quoteContent.innerHTML = `
+                            <div class="realtime-price">${data.price.toFixed(2)} CNY</div>
+                            <div class="realtime-time">SGE 时间: ${data.time}</div>
+                            <div class="realtime-time">最后更新: ${data.update_time}</div>
+                        `;
+                    }
+                } catch (error) {
+                    console.error("加载实时报价失败:", error);
+                }
+            } 
+            
+            // --- 7. 初始加载 (不变) ---
+            loadIntradayData(); // 默认加载 "分时图"
+            loadRealtimeQuote(); 
+            
+            // --- 8. (不变) 设置定时器 ---
+            setInterval(loadRealtimeQuote, 10000); 
             
             window.addEventListener('resize', () => myChart.resize());
             
