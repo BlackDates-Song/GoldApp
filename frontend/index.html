@@ -3,11 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>黄金仪表盘 (v1.1 - 修复缩放)</title>
+    <title>SGE 黄金仪表盘 (v3.0)</title>
     <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
     
     <style>
-        /* --- 所有 CSS (和之前完全一样) --- */
+        /* --- CSS (不变, 但成交量相关的CSS已失效) --- */
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
             background-color: #f0f2f5; margin: 0; padding: 20px; color: #333;
@@ -33,25 +33,19 @@
         #chart-container { width: 100%; height: 600px; }
         .placeholder { color: #999; font-style: italic; }
         
-        #k-line-controls {
-            display: flex; gap: 10px; margin-bottom: 15px;
-        }
+        #k-line-controls { display: flex; gap: 10px; margin-bottom: 15px; }
         .k-line-button {
             padding: 8px 16px; font-size: 0.9rem; border: 1px solid #d9d9d9;
             background-color: #fff; color: #555; border-radius: 4px; cursor: pointer;
             transition: all 0.2s ease;
         }
-        .k-line-button:hover {
-            border-color: #40a9ff; color: #40a9ff;
-        }
-        .k-line-button.active {
-            background-color: #1890ff; color: #fff; border-color: #1890ff;
-        }
+        .k-line-button:hover { border-color: #40a9ff; color: #40a9ff; }
+        .k-line-button.active { background-color: #1890ff; color: #fff; border-color: #1890ff; }
     </style>
 </head>
 <body>
 
-    <h1 style="text-align: center; margin-bottom: 20px;">黄金ETF (518880.SS) 仪表盘</h1>
+    <h1 style="text-align: center; margin-bottom: 20px;">SGE 黄金 (Au99.99) 仪表盘</h1>
 
     <div class="dashboard-container">
         
@@ -77,8 +71,8 @@
             <div id="info-widget" class="widget-card">
                 <h2>信息</h2>
                 <div class="placeholder">
-                    <p>数据源: yfinance</p>
-                    <p>标的: 518880.SS</p>
+                    <p>数据源: AkShare (SGE)</p>
+                    <p>标的: Au99.99 现货</p>
                 </div>
             </div>
         </div>
@@ -92,39 +86,45 @@
             
             const myChart = echarts.init(chartContainer);
             
-            // --- *** 关键修改 1：定义缩放级别 *** ---
             const zoomLevels = {
-                'daily': { start: 99, end: 100 }, // 显示最后 1%
-                'weekly': { start: 90, end: 100 }, // 显示最后 10%
-                'monthly': { start: 80, end: 100 }  // 显示最后 20%
+                'daily': { start: 99, end: 100 }, 
+                'weekly': { start: 90, end: 100 }, 
+                'monthly': { start: 75, end: 100 }  
             };
             
-            // 全局 ECharts 配置 (我们从这里移除了 dataZoom)
+            // --- *** 关键修改：ECharts模板已简化 *** ---
             const chartOptionTemplate = {
                 tooltip: { trigger: 'axis', axisPointer: { type: 'cross' } },
-                legend: { data: ['K线'], top: 0 }, // 简化图例
+                legend: { data: ['K线'], top: 0 },
+                
+                // 我们不再需要两个 grid, 只需要一个
                 grid: [
-                    { left: '8%', right: '5%', height: '50%' },
-                    { left: '8%', right: '5%', top: '65%', height: '16%' }
+                    { left: '10%', right: '8%', height: '65%' } // K线图占满
                 ],
+                // 只有一个 X 轴
                 xAxis: [
-                    { type: 'category', data: [], gridIndex: 0, scale: true },
-                    { type: 'category', data: [], gridIndex: 1, axisLabel: { show: false }, scale: true }
+                    { type: 'category', data: [], gridIndex: 0, scale: true }
                 ],
+                // 只有一个 Y 轴
                 yAxis: [
-                    { type: 'value', gridIndex: 0, scale: true, splitLine: { show: true }, axisLabel: { formatter: '{value} CNY' } },
-                    { type: 'value', gridIndex: 1, axisLabel: { show: false }, axisTick: { show: false }, splitLine: { show: false } }
+                    { type: 'value', gridIndex: 0, scale: true, splitLine: { show: true }, axisLabel: { formatter: '{value} CNY' } }
                 ],
-                // dataZoom 从这里移除, 放到 loadChartData 里动态设置
+                
+                // dataZoom 现在只控制索引为 0 的轴
+                dataZoom: [
+                    { type: 'inside', xAxisIndex: [0], start: 80, end: 100 },
+                    { type: 'slider', xAxisIndex: [0], top: '85%', start: 80, end: 100 }
+                ],
+                
+                // 只有一个 series
                 series: [
-                    { name: 'K线', type: 'candlestick', xAxisIndex: 0, yAxisIndex: 0, data: [] },
-                    { name: '成交量', type: 'bar', xAxisIndex: 1, yAxisIndex: 1, data: [], itemStyle: { color: '#777' } }
+                    { name: 'K线', type: 'candlestick', xAxisIndex: 0, yAxisIndex: 0, data: [] }
+                    // '成交量' Bar 图已被移除
                 ]
             };
             
             // --- 2. 核心函数：加载并更新图表数据 ---
             async function loadChartData(period) {
-                
                 console.log(`正在请求 ${period} 数据...`);
                 myChart.showLoading(); 
                 
@@ -135,25 +135,22 @@
                     const apiResponse = await response.json();
                     if (!apiResponse.success) throw new Error("API返回了错误或数据为空");
                     
+                    // --- *** 关键修改：不再处理 volumeData *** ---
                     let kLineData = apiResponse.k_line_data.map(item => [item[1], item[2], item[3], item[4]]);
-                    let volumeData = apiResponse.volume_data.map((item, index) => [index, item[1]]);
+                    // let volumeData = ... (已移除)
                     
-                    // --- *** 关键修改 2：动态设置数据和缩放 *** ---
-                    const newZoom = zoomLevels[period]; // 获取当前周期的缩放设置
+                    const newZoom = zoomLevels[period]; 
                     
                     myChart.setOption({
                         xAxis: [
-                            { data: apiResponse.dates }, // 更新X轴
-                            { data: apiResponse.dates }
+                            { data: apiResponse.dates } // 更新X轴
                         ],
                         series: [
-                            { data: kLineData }, // 更新K线数据
-                            { data: volumeData } // 更新成交量数据
+                            { data: kLineData } // 更新K线数据
                         ],
-                        // 动态更新 dataZoom
                         dataZoom: [
-                            { type: 'inside', xAxisIndex: [0, 1], start: newZoom.start, end: newZoom.end },
-                            { type: 'slider', xAxisIndex: [0, 1], top: '85%', start: newZoom.start, end: newZoom.end }
+                            { type: 'inside', xAxisIndex: [0], start: newZoom.start, end: newZoom.end },
+                            { type: 'slider', xAxisIndex: [0], top: '85%', start: newZoom.start, end: newZoom.end }
                         ]
                     });
                     
@@ -178,9 +175,9 @@
                 });
             });
             
-            // --- 5. 初始加载 ---
-            myChart.setOption(chartOptionTemplate); // 先设置好模板
-            loadChartData('daily'); // 默认加载日K (它会自动设置好 'daily' 的缩放)
+            // --- 5. 初始加载 (不变) ---
+            myChart.setOption(chartOptionTemplate); 
+            loadChartData('daily'); 
             
             window.addEventListener('resize', () => myChart.resize());
             
