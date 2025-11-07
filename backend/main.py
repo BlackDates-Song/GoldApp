@@ -150,22 +150,28 @@ async def get_gold_intraday():
             
         update_time_str = data_df.iloc[0]['更新时间']
         parsed_datetime = pd.to_datetime(update_time_str, format='%Y年%m月%d日 %H:%M:%S')
-        current_date_str = parsed_datetime.strftime('%Y-%m-%d')
-        
+
+        # --- 新增: 交易日修正 ---
+        # SGE 每个交易日从晚上 20:00 开始，到次日 15:30 结束
+        if parsed_datetime.hour < 16:  # 如果在凌晨到下午3:30之间
+            trade_date = (parsed_datetime - pd.Timedelta(days=1)).strftime('%Y-%m-%d')
+        else:
+            trade_date = parsed_datetime.strftime('%Y-%m-%d')
+
         intraday_data = []
-        
         time_col = '时间' if '时间' in data_df.columns else 'TIME'
         
         for index, row in data_df.iterrows():
             time_str = row[time_col]
             if time_str == "24:00:00":
                 time_str = "00:00:00" 
-            full_timestamp = f"{current_date_str}T{time_str}"
+            full_timestamp = f"{trade_date}T{time_str}"
             intraday_data.append([full_timestamp, row['现价']])
             
         return {"success": True, "data": intraday_data}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"获取分时数据失败: {e}")
+
 
 @app.get("/api/gold-realtime-quote")
 async def get_gold_realtime_quote():
