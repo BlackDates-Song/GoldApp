@@ -95,7 +95,7 @@
     <script>
         document.addEventListener("DOMContentLoaded", function() {
             
-            const API_BASE_URL = "https://goldapp-nfp9.onrender.com"; 
+            const API_BASE_URL = ""; 
             const chartContainer = document.getElementById('chart-container');
             const myChart = echarts.init(chartContainer);
             
@@ -265,7 +265,7 @@
                         lastTime = currentTime;     // 更新 "上一个时间"
                     }
                     // --- (修改结束) ---
-
+                    myChart.clear();
                     myChart.setOption(intradayOptionTemplate, true); 
                     
                     myChart.setOption({
@@ -275,7 +275,7 @@
                         series: [ 
                             { data: seriesValues } // <-- 填充 Y 轴价格
                         ] 
-                    });
+                    }, false);
                     
                     myChart.hideLoading();
                 } catch (error) {

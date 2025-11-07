@@ -7,11 +7,12 @@ from contextlib import asynccontextmanager
 from typing import Dict, Any, List
 from fastapi.responses import FileResponse
 import os
+import datetime
 
 # --- 1. 缓存 (用于K线) ---
 cached_data: Dict[str, Any] = {}
 
-# --- 2. 帮助函数：格式化 K 线 (v4.13 - 调整清理顺序) ---
+# --- 2. 帮助函数：格式化 K 线 (你的版本 - 很好) ---
 def format_for_echarts_kline(df: pd.DataFrame) -> Dict[str, Any]:
     """
     格式化 DataFrame 为 ECharts 的 K 线和 MA 线
@@ -49,9 +50,6 @@ def format_for_echarts_kline(df: pd.DataFrame) -> Dict[str, Any]:
     ma5_data = safe_float_list(df_formatted['MA5']) if 'MA5' in df_formatted else []
     ma10_data = safe_float_list(df_formatted['MA10']) if 'MA10' in df_formatted else []
     ma20_data = safe_float_list(df_formatted['MA20']) if 'MA20' in df_formatted else []
-
-    # 6. 调试输出 (可选)
-    print(f"[调试] 格式化完成: 行数={len(df_formatted)}, 前5日MA5={ma5_data[:5]}")
 
     # 7. 返回结构化数据
     return {
@@ -131,7 +129,7 @@ app.add_middleware(
 )
 
 # --- 
-# --- *** 6. 所有的 API 路由 (不变) ***
+# --- *** 6. 所有的 API 路由 ***
 # --- 
 @app.get("/api/gold-data")
 async def get_gold_data(period: str = "daily"): 
@@ -147,29 +145,56 @@ async def get_gold_intraday():
         data_df = ak.spot_quotations_sge(symbol="Au99.99")
         if data_df.empty:
             return {"success": False, "data": []}
-            
+
+        # (v4.21 不变) 你的日期计算逻辑是正确的
         update_time_str = data_df.iloc[0]['更新时间']
         parsed_datetime = pd.to_datetime(update_time_str, format='%Y年%m月%d日 %H:%M:%S')
-
-        # --- 新增: 交易日修正 ---
-        # SGE 每个交易日从晚上 20:00 开始，到次日 15:30 结束
-        if parsed_datetime.hour < 16:  # 如果在凌晨到下午3:30之间
-            trade_date = (parsed_datetime - pd.Timedelta(days=1)).strftime('%Y-%m-%d')
-        else:
-            trade_date = parsed_datetime.strftime('%Y-%m-%d')
-
         intraday_data = []
         time_col = '时间' if '时间' in data_df.columns else 'TIME'
+
+        for _, row in data_df.iterrows():
+            time_value = row[time_col]
+
+            if isinstance(time_value, str):
+                if time_value == "24:00:00":
+                    time_value = "00:00:00"
+                hour, minute, second = map(int, time_value.split(":"))
+            elif isinstance(time_value, datetime.time):
+                hour, minute, second = time_value.hour, time_value.minute, time_value.second
+                time_value = time_value.strftime("%H:%M:%S")
+            else:
+                continue
+
+            current_time = pd.Timestamp(parsed_datetime.year, parsed_datetime.month, parsed_datetime.day, hour, minute, second)
+
+            if hour < 16:
+                trade_date = (current_time - pd.Timedelta(days=1)).strftime('%Y-%m-%d')
+            else:
+                trade_date = current_time.strftime('%Y-%m-%d')
+
+            full_timestamp = f"{trade_date}T{time_value}"
+            intraday_data.append([full_timestamp, float(row['现价'])])
         
-        for index, row in data_df.iterrows():
-            time_str = row[time_col]
-            if time_str == "24:00:00":
-                time_str = "00:00:00" 
-            full_timestamp = f"{trade_date}T{time_str}"
-            intraday_data.append([full_timestamp, row['现价']])
+        # --- (v4.21 关键修复) ---
+        # 1. 检查列表是否为空
+        if not intraday_data:
+            return {"success": True, "data": []}
             
-        return {"success": True, "data": intraday_data}
+        # 2. 找到最新的交易日 (例如 "2025-11-07")
+        #    item[0].split('T')[0] 会获取 'YYYY-MM-DD' 部分
+        latest_date_str = max(item[0].split('T')[0] for item in intraday_data)
+        
+        # 3. 过滤列表，只保留最新交易日的数据
+        filtered_data = [item for item in intraday_data if item[0].startswith(latest_date_str)]
+        
+        print(f"[调试] 找到最新交易日: {latest_date_str}, 过滤后 {len(filtered_data)} 条数据")
+        # --- (修复结束) ---
+
+        return {"success": True, "data": filtered_data} # <-- 返回过滤后的数据
+    
     except Exception as e:
+        import traceback
+        traceback.print_exc() # 打印更详细的错误
         raise HTTPException(status_code=500, detail=f"获取分时数据失败: {e}")
 
 
