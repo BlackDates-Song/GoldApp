@@ -99,7 +99,7 @@
             const chartContainer = document.getElementById('chart-container');
             const myChart = echarts.init(chartContainer);
             
-            // --- 1. K线图模板 (已更新: 中文 tooltip) ---
+            // --- 1. K线图模板 (v4.17 - 修复移动端Y轴) ---
             const kLineOptionTemplate = {
                 tooltip: { 
                     trigger: 'axis', 
@@ -114,8 +114,6 @@
                             let marker = `<span style="display:inline-block;margin-right:5px;border-radius:10px;width:10px;height:10px;background-color:${color};"></span>`;
                             
                             if (seriesName === 'K线') {
-                                // K 线的数据是一个数组: [open, close, low, high]
-                                // 在 loadKLineData 中 item[1]~[4] 分别是 O,C,L,H
                                 tooltipHtml += `${marker} <strong>${seriesName}</strong><br/>`;
                                 tooltipHtml += `  开盘价: <strong>${value[1]}</strong><br/>`;
                                 tooltipHtml += `  收盘价: <strong>${value[2]}</strong><br/>`;
@@ -131,7 +129,10 @@
                     }
                 },
                 legend: { data: ['K线', 'MA5', 'MA10', 'MA20'], top: 0 },
-                grid: [ { left: '20px', right: '20px', height: '65%', containLabel: true } ],
+                grid: [ { 
+                    left: '20px', right: '20px', height: '65%',
+                    containLabel: true  // 自动调整 Y 轴标签
+                } ],
                 xAxis: [ { type: 'category', data: [], gridIndex: 0, scale: true } ],
                 yAxis: [ { type: 'value', gridIndex: 0, scale: true, splitLine: { show: true }, axisLabel: { formatter: '{value} CNY' } } ],
                 dataZoom: [ { type: 'inside', xAxisIndex: [0] }, { type: 'slider', xAxisIndex: [0], top: '85%' } ],
@@ -150,24 +151,26 @@
                 ]
             };
             
-            // --- 2. 分时图模板 (v4.16 - 已切换到 Category 轴) ---
+            // --- 2. 分时图模板 (v4.19 - 修复 20:00 空白) ---
             const intradayOptionTemplate = {
                 tooltip: { 
                     trigger: 'axis',
                     formatter: function (params) {
-                        // (已修改) 适配 category 轴
                         var param = params[0];
-                        // param.value 是价格, param.name 是 "HH:MM" 标签
                         if (!param || param.value === '-' || param.value === null) { return null; }
                         return param.name + '<br />价格: ' + param.value;
                     }
                 },
-                grid: [ { left: '20px', right: '20px', height: '65%', containLabel: true } ],
+                grid: [ { 
+                    left: '20px', right: '20px', height: '65%',
+                    containLabel: true  // 自动调整 Y 轴标签
+                } ],
                 xAxis: [
                     { 
-                        type: 'category', // <-- (关键修改) 从 'time' 改为 'category'
-                        data: [],         // <-- (关键修改) 用于存放 "HH:MM" 标签
-                        scale: true
+                        type: 'category', 
+                        data: [],         
+                        scale: true,
+                        boundaryGap: false // <-- (关键) 移除 20:00 的空白
                     }
                 ],
                 yAxis: [ { type: 'value', scale: true, axisLabel: { formatter: '{value} CNY' } } ],
@@ -178,7 +181,7 @@
                 series: [
                     {
                         name: '价格', type: 'line', showSymbol: false, smooth: true, data: [],
-                        connectNulls: false, // 核心: 不连接空值
+                        connectNulls: false, 
                         markPoint: {
                             symbol: 'pin', symbolSize: 50, label: { show: true, fontSize: 10, color: '#fff' },
                             data: [ { type: 'max', name: '最高价' }, { type: 'min', name: '最低价' } ]
@@ -218,62 +221,59 @@
                 }
             } 
 
-            // --- 4. 加载分时图函数 (v4.16 - 重写以适配 Category 轴) ---
+            // --- 4. 加载分时图函数 (v4.19 - 已移除昨日收盘线逻辑) ---
             async function loadIntradayData() {
                 myChart.showLoading();
                 try {
                     const response = await fetch(`${API_BASE_URL}/api/gold-intraday`);
                     if (!response.ok) throw new Error(`HTTP 错误! 状态: ${response.status}`);
+                    
                     const apiResponse = await response.json();
                     if (!apiResponse.success || !apiResponse.data || apiResponse.data.length === 0) {
-                        throw new Error("API返回了无效的分时数据");
+                        throw new Error("分时 API 数据为空");
                     }
 
-                    // --- (v4.16 关键修改) ---
-                    // 我们需要创建两个新数组：
-                    const axisLabels = [];   // 1. x轴的时间标签 (e.g., "09:01")
-                    const seriesValues = []; // 2. y轴的价格 (e.g., 550.20)
-                    
-                    const GAP_THRESHOLD_MINUTES = 60; // 超过60分钟
+                    // --- (不变) Category 轴数据处理 ---
+                    const axisLabels = [];   
+                    const seriesValues = []; 
+                    const GAP_THRESHOLD_MINUTES = 60; 
                     let lastTime = 0;
 
                     for (let i = 0; i < apiResponse.data.length; i++) {
-                        const point = apiResponse.data[i]; // e.g., ['2025-11-07T09:01:00', 500.50]
+                        const point = apiResponse.data[i];
                         const currentTime = new Date(point[0]).getTime();
                         const value = point[1];
 
                         if (i > 0) {
-                            // 检查时间差
                             const gapInMinutes = (currentTime - lastTime) / (1000 * 60);
-                            
                             if (gapInMinutes > GAP_THRESHOLD_MINUTES) {
-                                // 发现一个大间隔 (例如 02:30 -> 09:00)
-                                // 插入一个空白点来实现“断线”
-                                axisLabels.push(''); // X轴上一个空标签
-                                seriesValues.push('-'); // Y轴上一个空值
+                                axisLabels.push(''); 
+                                seriesValues.push('-');
                             }
                         }
                         
-                        // 格式化 "HH:MM"
                         var date = new Date(currentTime);
                         var timeLabel = [date.getHours(), date.getMinutes()].map(function (n) {
                             return n < 10 ? '0' + n : n;
                         }).join(':');
 
-                        axisLabels.push(timeLabel); // 添加 "HH:MM" 标签
-                        seriesValues.push(value);   // 添加价格
-                        lastTime = currentTime;     // 更新 "上一个时间"
+                        axisLabels.push(timeLabel); 
+                        seriesValues.push(value);   
+                        lastTime = currentTime;     
                     }
-                    // --- (修改结束) ---
+                    // --- (数据处理结束) ---
 
                     myChart.setOption(intradayOptionTemplate, true); 
                     
                     myChart.setOption({
                         xAxis: [ 
-                            { data: axisLabels } // <-- 填充 X 轴标签
+                            { data: axisLabels } 
                         ],
                         series: [ 
-                            { data: seriesValues } // <-- 填充 Y 轴价格
+                            { 
+                                data: seriesValues
+                                // (已移除 markLine)
+                            }
                         ] 
                     });
                     
