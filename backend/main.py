@@ -8,6 +8,7 @@ from typing import Dict, Any, List
 from fastapi.responses import FileResponse
 import os
 import datetime
+import asyncio
 
 # --- 1. 缓存 (用于K线) ---
 cached_data: Dict[str, Any] = {}
@@ -62,6 +63,57 @@ def format_for_echarts_kline(df: pd.DataFrame) -> Dict[str, Any]:
     }
 
 
+# --- (v4.28 新增) 新闻获取的独立函数 ---
+async def fetch_and_cache_news():
+    """
+    (v4.28) 独立的新闻获取和过滤逻辑
+    """
+    print("--- [新闻任务] 正在加载上海金属网(SHMET)快讯... ---")
+    try:
+        # 1. 使用 "贵金属" 分类
+        # (v4.27) 获取更多新闻 (e.g., 200) 用于过滤
+        news_df_raw = await asyncio.to_thread(ak.futures_news_shmet, symbol="贵金属") 
+        
+        # 2. (v4.27 修复) 执行黄金专项过滤
+        content_col = '内容' #
+        
+        contains_gold = news_df_raw[content_col].str.contains("黄金", na=False)
+        contains_silver = news_df_raw[content_col].str.contains("白银", na=False)
+        contains_platinum = news_df_raw[content_col].str.contains("铂金", na=False)
+        contains_palladium = news_df_raw[content_col].str.contains("钯金", na=False)
+
+        is_other_metal_only = (contains_silver | contains_platinum | contains_palladium) & ~contains_gold
+
+        news_df = news_df_raw[~is_other_metal_only]
+
+        # 3. (v4.27) 从 *过滤后* 的结果中，获取最新的 50 条
+        news_df = news_df[['发布时间', '内容']].tail(50) #
+        
+        # 4. (v4.25) 将中文列名重命名
+        news_df.rename(columns={
+            '发布时间': 'report_time',
+            '内容': 'report_content'
+        }, inplace=True)
+
+        cached_data['news'] = news_df.to_dict('records')
+        print(f"--- [新闻任务] 贵金属快讯过滤后，已缓存 {len(cached_data['news'])} 条 ---")
+
+    except Exception as e:
+        print(f"--- !!! [新闻任务] 快讯加载失败 !!! ---\n错误: {e}")
+        # (v4.28) 失败时不清空旧缓存，保持上一次成功的数据
+        if 'news' not in cached_data:
+            cached_data['news'] = []
+
+# --- (v4.28 新增) 后台定时任务 ---
+async def update_news_cache_periodically():
+    """
+    (v4.28) 后台任务, 每 15 分钟刷新一次新闻
+    """
+    while True:
+        await asyncio.sleep(15 * 60) # 15 分钟
+        print("--- [定时任务] 正在刷新新闻缓存... ---")
+        await fetch_and_cache_news()
+
 # --- 3. 'lifespan' (K线缓存, 不变) ---
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -107,6 +159,15 @@ async def lifespan(app: FastAPI):
         cached_data['monthly'] = format_for_echarts_kline(data_monthly.copy())
         
         print("--- SGE K线数据 (含MA) 已缓存！ ---")
+
+        # --- (v4.28 修改) 新闻缓存逻辑 ---
+        # 1. 启动时立即获取一次
+        print("--- [启动] 正在加载初始新闻... ---")
+        await fetch_and_cache_news()
+        
+        # 2. 启动后台定时刷新任务
+        asyncio.create_task(update_news_cache_periodically())
+        print("--- [启动] 新闻后台定时刷新任务已启动 (15分钟/次) ---")
         
     except Exception as e:
         print(f"--- !!! 启动时数据加载失败 !!! ---\n错误: {e}")
@@ -217,6 +278,17 @@ async def get_gold_realtime_quote():
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"获取实时报价失败: {e}")
+    
+@app.get("/api/gold-news")
+async def get_gold_news():
+    """
+    (v4.24 新增) 从缓存中获取财经快讯
+    """
+    if "news" not in cached_data:
+        raise HTTPException(status_code=500, detail="新闻数据尚未加载。")
+    
+    return {"success": True, "data": cached_data['news']}
+
 
 # --- 
 # --- *** 7. 定义前端路由 (不变) ***

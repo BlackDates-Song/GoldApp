@@ -3,20 +3,36 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SGE 黄金仪表盘 (v4.16 - 紧凑分时图)</title>
+    <title>SGE 黄金仪表盘 (v4.24 - 新闻模块)</title>
     <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
     
     <style>
-        /* --- (CSS 保持不变) --- */
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
             background-color: #f0f2f5; margin: 0; padding: 10px; color: #333;
         }
         h1 { text-align: center; margin-bottom: 20px; font-size: 1.8rem; }
+        
+        /* [v4.24 修改] 容器改为垂直布局 */
         .dashboard-container { 
-            display: flex; width: 100%; max-width: 1600px; margin: 0 auto; 
+            display: flex; 
+            flex-direction: column; /* 堆叠 [上排] 和 [下排] */
+            width: 100%; max-width: 1600px; margin: 0 auto; 
             gap: 20px; 
         }
+
+        /* [v4.24 新增] 顶部行 (图表 + 侧边栏) */
+        .top-row {
+            display: flex;
+            gap: 20px;
+            width: 100%;
+        }
+
+        /* [v4.24 新增] 底部行 (新闻) */
+        .bottom-row {
+            width: 100%;
+        }
+
         .main-content { flex: 7; min-width: 600px; box-sizing: border-box; }
         .sidebar-content { 
             flex: 3; min-width: 300px; display: flex; 
@@ -47,13 +63,61 @@
         .realtime-time { font-size: 0.9rem; color: #888; }
         .placeholder { color: #999; font-style: italic; }
         
+        /* [v4.24 新增] 新闻模块样式 */
+        #news-content {
+            height: 400px; /* 给一个固定高度 */
+            overflow-y: auto; /* 超出高度则滚动 */
+            padding-right: 10px; /* 为滚动条留出空间 */
+        }
+        .news-item {
+            border-bottom: 1px solid #f0f0f0;
+            padding: 10px 0;
+            margin-bottom: 5px;
+        }
+        .news-item:last-child {
+            border-bottom: none;
+        }
+        .news-time {
+            font-size: 0.85rem;
+            color: #888;
+            margin-bottom: 8px;
+        }
+        .news-title {
+            font-size: 1rem;
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 5px;
+            line-height: 1.4;
+        }
+        .news-content {
+            font-size: 0.95rem;
+            line-height: 1.5;
+            color: #555;
+        }
+        /* --- (新增结束) --- */
+
+
+        /* [v4.24 修改] 手机端布局 */
         @media (max-width: 992px) {
             body { padding: 5px; }
-            .dashboard-container { flex-direction: column; gap: 20px; }
-            .main-content { min-width: 100%; order: 2; }
-            .sidebar-content { display: contents; }
+
+            .top-row {
+                flex-direction: column;
+            }
+
+            .main-content { min-width: 100%; order: 2; } /* 图表在下 */
+            .widget-card { padding: 15px; } 
+
+            .sidebar-content { 
+                min-width: 100%;
+                order: 1; /* 整个侧边栏在上 */
+            }
+            
+            /* 侧边栏内部顺序 */
             #realtime-quote-widget { order: 1; }
-            #ai-widget { order: 3; }
+            #ai-widget { order: 2; } 
+            /* 新闻模块 (news-widget) 在 bottom-row 中, 自动在最后 (order: 3) */
+
             #chart-container { height: 400px; }
             h1 { font-size: 1.5rem; }
             .realtime-price { font-size: 1.8rem; }
@@ -63,34 +127,50 @@
 <body>
 
     <h1 style="text-align: center; margin-bottom: 20px;">SGE 黄金 (Au99.99) 仪表盘</h1>
+    
     <div class="dashboard-container">
-        <div class="main-content">
-            <div id="k-line-card" class="widget-card">
-                <h2>图表</h2>
-                <div id="k-line-controls">
-                    <button class="k-line-button active" data-type="intraday">分时</button>
-                    <button class="k-line-button" data-type="kline" data-period="daily">日K</button>
-                    <button class="k-line-button" data-type="kline" data-period="weekly">周K</button>
-                    <button class="k-line-button" data-type="kline" data-period="monthly">月K</button>
+        
+        <div class="top-row">
+            
+            <div class="main-content">
+                <div id="k-line-card" class="widget-card">
+                    <h2>图表</h2>
+                    <div id="k-line-controls">
+                        <button class="k-line-button active" data-type="intraday">分时</button>
+                        <button class="k-line-button" data-type="kline" data-period="daily">日K</button>
+                        <button class="k-line-button" data-type="kline" data-period="weekly">周K</button>
+                        <button class="k-line-button" data-type="kline" data-period="monthly">月K</button>
+                    </div>
+                    <div id="chart-container"></div>
                 </div>
-                <div id="chart-container"></div>
+            </div>
+
+            <div class="sidebar-content">
+                <div id="realtime-quote-widget" class="widget-card">
+                    <h2>实时行情 (Au99.99)</h2>
+                    <div id="realtime-content">
+                        <div class="placeholder">正在加载实时价格...</div>
+                    </div>
+                </div>
+                <div id="ai-widget" class="widget-card">
+                    <h2>AI分析</h2>
+                    <div class="placeholder">
+                        <p>AI 预测信号将在这里显示...</p>
+                    </div>
+                </div>
             </div>
         </div>
-        <div class="sidebar-content">
-            <div id="realtime-quote-widget" class="widget-card">
-                <h2>实时行情 (Au99.99)</h2>
-                <div id="realtime-content">
-                    <div class="placeholder">正在加载实时价格...</div>
-                </div>
-            </div>
-            <div id="ai-widget" class="widget-card">
-                <h2>AI分析</h2>
-                <div class="placeholder">
-                    <p>AI 预测信号将在这里显示...</p>
+
+        <div class="bottom-row">
+            <div id="news-widget" class="widget-card">
+                <h2>贵金属快讯 (SHMET)</h2>
+                <div id="news-content">
+                    <div class="placeholder">正在加载新闻...</div>
                 </div>
             </div>
         </div>
-    </div> 
+
+    </div>
     
     <script>
         document.addEventListener("DOMContentLoaded", function() {
@@ -312,12 +392,78 @@
                     }
                 } catch (error) { /* 静默处理错误 */ }
             } 
+
+            // --- [v4.24 新增] 6.5 加载新闻快讯 ---
+            const newsContent = document.getElementById('news-content');
+
+            function formatNewsTime(isoString) {
+                try {
+                    const date = new Date(isoString);
+                    const y = date.getFullYear();
+                    const m = (date.getMonth() + 1).toString().padStart(2, '0');
+                    const d = date.getDate().toString().padStart(2, '0');
+                    const h = date.getHours().toString().padStart(2, '0');
+                    const min = date.getMinutes().toString().padStart(2, '0');
+                    return `${y}-${m}-${d} ${h}:${min}`;
+                } catch(e) {
+                    return isoString; // 格式化失败则返回原文
+                }
+            }
+
+            async function loadNewsData() {
+                try {
+                    const response = await fetch(`${API_BASE_URL}/api/gold-news`);
+                    if (!response.ok) {
+                        newsContent.innerHTML = '<div class="placeholder">新闻加载失败。</div>';
+                        return;
+                    }
+                    const apiResponse = await response.json();
+                    
+                    if (apiResponse.success && apiResponse.data.length > 0) {
+                        
+                        apiResponse.data.reverse(); // (v4.25 修复) 倒序
+                        
+                        let html = '';
+                        apiResponse.data.forEach(item => {
+                            
+                            // [v4.26 修复] 1. 格式化时间
+                            const formattedTime = formatNewsTime(item.report_time);
+                            
+                            // [v4.26 修复] 2. 分离标题和内容
+                            let title = '';
+                            let content = item.report_content;
+                            
+                            if (content.startsWith('【') && content.includes('】')) {
+                                const splitIndex = content.indexOf('】') + 1;
+                                title = content.substring(0, splitIndex);
+                                content = content.substring(splitIndex);
+                            }
+
+                            html += `
+                                <div class="news-item">
+                                    <div class="news-time">${formattedTime}</div>
+                                    <div class="news-title">${title}</div>
+                                    <div class="news-content">${content}</div>
+                                </div>
+                            `;
+                        });
+                        newsContent.innerHTML = html;
+                    } else {
+                        newsContent.innerHTML = '<div class="placeholder">暂无新闻。</div>';
+                    }
+                } catch (error) {
+                    console.error("新闻加载失败:", error);
+                    newsContent.innerHTML = '<div class="placeholder">新闻接口请求异常。</div>';
+                }
+            }
             
             // --- 7. 初始加载 (不变) ---
             loadIntradayData(); 
             loadRealtimeQuote(); 
-            
+            loadNewsData();
+
             setInterval(loadRealtimeQuote, 10000); // 10秒刷新
+            setInterval(loadNewsData, 15 * 60 * 1000); // 15分钟刷新新闻
             
             window.addEventListener('resize', () => myChart.resize());
             
