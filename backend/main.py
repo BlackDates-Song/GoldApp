@@ -289,6 +289,60 @@ async def get_gold_news():
     
     return {"success": True, "data": cached_data['news']}
 
+@app.get("/api/ai-prediction")
+async def get_ai_prediction():
+    """
+    (v4.30) 基于日K均线交叉的简单 AI 信号
+    """
+    try:
+        if "daily" not in cached_data or not cached_data["daily"].get("ma5"):
+             raise HTTPException(status_code=500, detail="AI模型数据尚未加载")
+
+        # 1. 获取已缓存的均线数据 (已清理过 NaN/None)
+        ma5_list = cached_data["daily"]["ma5"]
+        ma20_list = cached_data["daily"]["ma20"]
+        
+        # 2. 找到最后两个有效的数据点 (跳过末尾的 None)
+        ma5_valid = [v for v in ma5_list if v is not None]
+        ma20_valid = [v for v in ma20_list if v is not None]
+        
+        if len(ma5_valid) < 2 or len(ma20_valid) < 2:
+            return {"signal": "等待数据", "detail": "均线数据不足"}
+            
+        # ma5_prev = 倒数第二天, ma5_last = 最近一天
+        ma5_prev, ma5_last = ma5_valid[-2], ma5_valid[-1]
+        ma20_prev, ma20_last = ma20_valid[-2], ma20_valid[-1]
+
+        # 3. AI 决策逻辑
+        signal = "震荡"
+        detail = f"MA5({ma5_last}) / MA20({ma20_last})"
+
+        # 检查金叉 (看涨)
+        if ma5_prev < ma20_prev and ma5_last > ma20_last:
+            signal = "看涨"
+            detail = f"金叉形成: MA5({ma5_last}) 上穿 MA20({ma20_last})"
+        
+        # 检查死叉 (看跌)
+        elif ma5_prev > ma20_prev and ma5_last < ma20_last:
+            signal = "看跌"
+            detail = f"死叉形成: MA5({ma5_last}) 下穿 MA20({ma20_last})"
+        
+        # 检查趋势保持
+        elif ma5_last > ma20_last:
+            signal = "多头趋势"
+            detail = f"MA5({ma5_last}) 保持在 MA20({ma20_last}) 之上"
+        
+        elif ma5_last < ma20_last:
+            signal = "空头趋势"
+            detail = f"MA5({ma5_last}) 保持在 MA20({ma20_last}) 之下"
+
+        return {"signal": signal, "detail": detail}
+
+    except Exception as e:
+        return {"signal": "错误", "detail": str(e)}
+
+
+
 
 # --- 
 # --- *** 7. 定义前端路由 (不变) ***

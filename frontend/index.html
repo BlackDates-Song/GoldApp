@@ -457,14 +457,54 @@
                 }
             }
             
+            // --- [v4.30 新增] 6.8 加载 AI 预测 ---
+            const aiWidget = document.getElementById('ai-widget');
+            async function loadAIPrediction() {
+                try {
+                    const response = await fetch(`${API_BASE_URL}/api/ai-prediction`);
+                    if (!response.ok) {
+                        aiWidget.innerHTML = '<h2>AI分析</h2><div class="placeholder">AI 模型加载失败...</div>';
+                        return;
+                    }
+                    const apiResponse = await response.json();
+                    
+                    let signalColor = '#333'; // 默认
+                    if (apiResponse.signal === '看涨' || apiResponse.signal === '多头趋势') {
+                        signalColor = '#ff4d4f'; // 红色 (涨)
+                    } else if (apiResponse.signal === '看跌' || apiResponse.signal === '空头趋势') {
+                        signalColor = '#52c41a'; // 绿色 (跌)
+                    } else if (apiResponse.signal === '震荡') {
+                        signalColor = '#faad14'; // 黄色
+                    }
+
+                    aiWidget.innerHTML = `
+                        <h2>AI分析 (日K)</h2>
+                        <div style="text-align: center; margin-bottom: 15px;">
+                            <div style="font-size: 1.8rem; font-weight: bold; color: ${signalColor};">
+                                ${apiResponse.signal}
+                            </div>
+                        </div>
+                        <div style="font-size: 0.9rem; color: #888; line-height: 1.4;">
+                            <strong>分析:</strong> ${apiResponse.detail}
+                        </div>
+                    `;
+
+                } catch (error) {
+                    console.error("AI 分析加载失败:", error);
+                    aiWidget.innerHTML = '<h2>AI分析</h2><div class="placeholder">AI 分析接口请求异常。</div>';
+                }
+            }
+
             // --- 7. 初始加载 (不变) ---
             loadIntradayData(); 
             loadRealtimeQuote(); 
             loadNewsData();
+            loadAIPrediction();
 
             setInterval(loadRealtimeQuote, 10000); // 10秒刷新
             setInterval(loadNewsData, 15 * 60 * 1000); // 15分钟刷新新闻
-            
+            setInterval(loadAIPrediction, 15 * 60 * 1000); // 15分钟刷新AI预测
+
             window.addEventListener('resize', () => myChart.resize());
             
         });
