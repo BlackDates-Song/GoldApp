@@ -3,36 +3,23 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SGE 黄金仪表盘 (v4.24 - 新闻模块)</title>
+    <title>SGE 黄金仪表盘 (v4.40 - 动态缩放)</title>
     <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
     
     <style>
+        /* --- (CSS v4.31 - 不变) --- */
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
             background-color: #f0f2f5; margin: 0; padding: 10px; color: #333;
         }
         h1 { text-align: center; margin-bottom: 20px; font-size: 1.8rem; }
-        
-        /* [v4.24 修改] 容器改为垂直布局 */
         .dashboard-container { 
-            display: flex; 
-            flex-direction: column; /* 堆叠 [上排] 和 [下排] */
+            display: flex; flex-direction: column; 
             width: 100%; max-width: 1600px; margin: 0 auto; 
             gap: 20px; 
         }
-
-        /* [v4.24 新增] 顶部行 (图表 + 侧边栏) */
-        .top-row {
-            display: flex;
-            gap: 20px;
-            width: 100%;
-        }
-
-        /* [v4.24 新增] 底部行 (新闻) */
-        .bottom-row {
-            width: 100%;
-        }
-
+        .top-row { display: flex; gap: 20px; width: 100%; }
+        .bottom-row { width: 100%; }
         .main-content { flex: 7; min-width: 600px; box-sizing: border-box; }
         .sidebar-content { 
             flex: 3; min-width: 300px; display: flex; 
@@ -56,68 +43,44 @@
         }
         .k-line-button:hover { border-color: #40a9ff; color: #40a9ff; }
         .k-line-button.active { background-color: #1890ff; color: #fff; border-color: #1890ff; }
-        .realtime-price {
-            font-size: 2.0rem; font-weight: bold; 
-            color: #ff4d4f; margin-bottom: 10px;
-        }
+        .realtime-price { font-size: 2.0rem; font-weight: bold; color: #ff4d4f; margin-bottom: 10px; }
         .realtime-time { font-size: 0.9rem; color: #888; }
         .placeholder { color: #999; font-style: italic; }
         
-        /* [v4.24 新增] 新闻模块样式 */
-        #news-content {
-            height: 400px; /* 给一个固定高度 */
-            overflow-y: auto; /* 超出高度则滚动 */
-            padding-right: 10px; /* 为滚动条留出空间 */
-        }
-        .news-item {
+        /* 新闻模块样式 (不变) */
+        #news-content { height: 400px; overflow-y: auto; padding-right: 10px; }
+        .news-item { border-bottom: 1px solid #f0f0f0; padding: 10px 0; margin-bottom: 5px; }
+        .news-item:last-child { border-bottom: none; }
+        .news-time { font-size: 0.85rem; color: #888; margin-bottom: 8px; }
+        .news-title { font-size: 1rem; font-weight: bold; color: #333; margin-bottom: 5px; line-height: 1.4; }
+        .news-content { font-size: 0.95rem; line-height: 1.5; color: #555; }
+        
+        /* 全球市场模块样式 (不变) */
+        .global-market-item {
+            display: flex; justify-content: space-between; align-items: center;
+            font-size: 1rem; margin-bottom: 12px; padding-bottom: 12px;
             border-bottom: 1px solid #f0f0f0;
-            padding: 10px 0;
-            margin-bottom: 5px;
         }
-        .news-item:last-child {
-            border-bottom: none;
+        .global-market-item:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
+        .global-market-item .name { font-weight: bold; color: #333; }
+        .global-market-item .price { font-size: 1.1rem; font-weight: bold; }
+        .global-market-item .change {
+            font-size: 1rem; font-weight: bold; padding: 4px 8px;
+            border-radius: 4px; color: #fff;
         }
-        .news-time {
-            font-size: 0.85rem;
-            color: #888;
-            margin-bottom: 8px;
-        }
-        .news-title {
-            font-size: 1rem;
-            font-weight: bold;
-            color: #333;
-            margin-bottom: 5px;
-            line-height: 1.4;
-        }
-        .news-content {
-            font-size: 0.95rem;
-            line-height: 1.5;
-            color: #555;
-        }
-        /* --- (新增结束) --- */
+        .change-up { background-color: #ff4d4f; } /* 涨 (红) */
+        .change-down { background-color: #52c41a; } /* 跌 (绿) */
+        .change-flat { background-color: #aaa; } /* 平 */
 
-
-        /* [v4.24 修改] 手机端布局 */
         @media (max-width: 992px) {
             body { padding: 5px; }
-
-            .top-row {
-                flex-direction: column;
-            }
-
-            .main-content { min-width: 100%; order: 2; } /* 图表在下 */
+            .top-row { flex-direction: column; }
+            .main-content { min-width: 100%; order: 2; } 
             .widget-card { padding: 15px; } 
-
-            .sidebar-content { 
-                min-width: 100%;
-                order: 1; /* 整个侧边栏在上 */
-            }
-            
-            /* 侧边栏内部顺序 */
+            .sidebar-content { min-width: 100%; order: 1; }
             #realtime-quote-widget { order: 1; }
-            #ai-widget { order: 2; } 
-            /* 新闻模块 (news-widget) 在 bottom-row 中, 自动在最后 (order: 3) */
-
+            #global-markets-widget { order: 2; }
+            #ai-widget { order: 3; } 
             #chart-container { height: 400px; }
             h1 { font-size: 1.5rem; }
             .realtime-price { font-size: 1.8rem; }
@@ -131,7 +94,6 @@
     <div class="dashboard-container">
         
         <div class="top-row">
-            
             <div class="main-content">
                 <div id="k-line-card" class="widget-card">
                     <h2>图表</h2>
@@ -152,10 +114,18 @@
                         <div class="placeholder">正在加载实时价格...</div>
                     </div>
                 </div>
+                
+                <div id="global-markets-widget" class="widget-card">
+                    <h2>全球市场</h2>
+                    <div id="global-markets-content">
+                        <div class="placeholder">正在加载...</div>
+                    </div>
+                </div>
+
                 <div id="ai-widget" class="widget-card">
-                    <h2>AI分析</h2>
-                    <div class="placeholder">
-                        <p>AI 预测信号将在这里显示...</p>
+                    <h2>AI分析 (日K)</h2>
+                    <div id="ai-content">
+                        <div class="placeholder">正在加载 AI 信号...</div>
                     </div>
                 </div>
             </div>
@@ -170,7 +140,7 @@
             </div>
         </div>
 
-    </div>
+    </div> 
     
     <script>
         document.addEventListener("DOMContentLoaded", function() {
@@ -179,23 +149,19 @@
             const chartContainer = document.getElementById('chart-container');
             const myChart = echarts.init(chartContainer);
             
-            // --- 1. K线图模板 (已更新: 中文 tooltip) ---
+            // --- 1. K线图模板 (v4.40 - 修复 Tooltip 索引) ---
             const kLineOptionTemplate = {
                 tooltip: { 
                     trigger: 'axis', 
                     axisPointer: { type: 'cross' },
                     formatter: function (params) {
-                        let date = params[0].name;
-                        let tooltipHtml = `${date}<br/>`; 
+                        let date = params[0].name; let tooltipHtml = `${date}<br/>`; 
                         params.forEach(param => {
-                            let seriesName = param.seriesName;
-                            let color = param.color;
-                            let value = param.value;
+                            let seriesName = param.seriesName; let color = param.color; let value = param.value;
                             let marker = `<span style="display:inline-block;margin-right:5px;border-radius:10px;width:10px;height:10px;background-color:${color};"></span>`;
-                            
                             if (seriesName === 'K线') {
-                                // K 线的数据是一个数组: [open, close, low, high]
-                                // 在 loadKLineData 中 item[1]~[4] 分别是 O,C,L,H
+                                // (v4.40 修复) 索引从 0 开始
+                                // value[1]=open, value[2]=close, value[3]=low, value[4]=high
                                 tooltipHtml += `${marker} <strong>${seriesName}</strong><br/>`;
                                 tooltipHtml += `  开盘价: <strong>${value[1]}</strong><br/>`;
                                 tooltipHtml += `  收盘价: <strong>${value[2]}</strong><br/>`;
@@ -214,15 +180,16 @@
                 grid: [ { left: '20px', right: '20px', height: '65%', containLabel: true } ],
                 xAxis: [ { type: 'category', data: [], gridIndex: 0, scale: true } ],
                 yAxis: [ { type: 'value', gridIndex: 0, scale: true, splitLine: { show: true }, axisLabel: { formatter: '{value} CNY' } } ],
-                dataZoom: [ { type: 'inside', xAxisIndex: [0] }, { type: 'slider', xAxisIndex: [0], top: '85%' } ],
+                // (v4.40 修改) dataZoom 不再使用 start/end 百分比
+                dataZoom: [ 
+                    { type: 'inside', xAxisIndex: [0] }, 
+                    { type: 'slider', xAxisIndex: [0], top: '85%' } 
+                ],
                 series: [ 
                     { 
                         name: 'K线', type: 'candlestick', 
                         xAxisIndex: 0, yAxisIndex: 0, data: [],
-                        markPoint: {
-                            symbol: 'pin', symbolSize: 50, label: { show: true, fontSize: 10, color: '#fff' },
-                            data: [ { type: 'max', valueDim: 'highest' }, { type: 'min', valueDim: 'lowest' } ]
-                        }
+                        markPoint: { data: [ { type: 'max', valueDim: 'highest' }, { type: 'min', valueDim: 'lowest' } ] }
                     },
                     { name: 'MA5', type: 'line', xAxisIndex: 0, yAxisIndex: 0, data: [], smooth: true, showSymbol: false, lineStyle: { width: 1, opacity: 0.8 } },
                     { name: 'MA10', type: 'line', xAxisIndex: 0, yAxisIndex: 0, data: [], smooth: true, showSymbol: false, lineStyle: { width: 1, opacity: 0.8 } },
@@ -230,44 +197,26 @@
                 ]
             };
             
-            // --- 2. 分时图模板 (v4.16 - 已切换到 Category 轴) ---
+            // --- 2. 分时图模板 (v4.24 - 修复 20:00 空白) (不变) ---
             const intradayOptionTemplate = {
                 tooltip: { 
                     trigger: 'axis',
                     formatter: function (params) {
-                        // (已修改) 适配 category 轴
-                        var param = params[0];
-                        // param.value 是价格, param.name 是 "HH:MM" 标签
-                        if (!param || param.value === '-' || param.value === null) { return null; }
+                        var param = params[0]; if (!param || param.value === '-' || param.value === null) { return null; }
                         return param.name + '<br />价格: ' + param.value;
                     }
                 },
                 grid: [ { left: '20px', right: '20px', height: '65%', containLabel: true } ],
-                xAxis: [
-                    { 
-                        type: 'category', // <-- (关键修改) 从 'time' 改为 'category'
-                        data: [],         // <-- (关键修改) 用于存放 "HH:MM" 标签
-                        scale: true
-                    }
-                ],
+                xAxis: [ { type: 'category', data: [], scale: true, boundaryGap: false } ],
                 yAxis: [ { type: 'value', scale: true, axisLabel: { formatter: '{value} CNY' } } ],
-                dataZoom: [ 
-                    { type: 'inside', xAxisIndex: [0], start: 0, end: 100 }, 
-                    { type: 'slider', xAxisIndex: [0], top: '85%', start: 0, end: 100 } 
-                ],
-                series: [
-                    {
-                        name: '价格', type: 'line', showSymbol: false, smooth: true, data: [],
-                        connectNulls: false, // 核心: 不连接空值
-                        markPoint: {
-                            symbol: 'pin', symbolSize: 50, label: { show: true, fontSize: 10, color: '#fff' },
-                            data: [ { type: 'max', name: '最高价' }, { type: 'min', name: '最低价' } ]
-                        }
+                dataZoom: [ { type: 'inside', xAxisIndex: [0], start: 0, end: 100 }, { type: 'slider', xAxisIndex: [0], top: '85%', start: 0, end: 100 } ],
+                series: [ { name: '价格', type: 'line', showSymbol: false, smooth: true, data: [], connectNulls: false,
+                        markPoint: { data: [ { type: 'max', name: '最高价' }, { type: 'min', name: '最低价' } ] }
                     }
                 ]
             };
 
-            // --- 3. 加载K线图函数 (不变) ---
+            // --- 3. 加载K线图函数 (v4.40 - 关键修改) ---
             async function loadKLineData(period) {
                 myChart.showLoading(); 
                 try {
@@ -276,8 +225,18 @@
                     const apiResponse = await response.json();
                     if (!apiResponse.success) throw new Error("API返回了K线错误");
                     
+                    // (v4.40 修复) item[0]=Date, [1]=open, [2]=close, [3]=low, [4]=high
                     let kLineData = apiResponse.k_line_data.map(item => [item[1], item[2], item[3], item[4]]);
-                    const zoomLevels = { 'daily': 99, 'weekly': 93, 'monthly': 70 };
+                    
+                    // --- (v4.40 关键修改) ---
+                    // 动态计算 15 个单位的缩放
+                    const windowSize = 15;
+                    const endIndex = apiResponse.dates.length - 1;
+                    const startIndex = Math.max(0, endIndex - (windowSize - 1)); // -1 因为 14 个点包括终点
+                    
+                    const startValue = apiResponse.dates[startIndex];
+                    const endValue = apiResponse.dates[endIndex];
+                    // --- (v4.40 修改结束) ---
                     
                     myChart.setOption(kLineOptionTemplate, true); 
                     
@@ -289,79 +248,47 @@
                             { name: 'MA10', data: apiResponse.ma10 },
                             { name: 'MA20', data: apiResponse.ma20 }
                         ],
-                        dataZoom: [ { start: zoomLevels[period], end: 100 }, { start: zoomLevels[period], end: 100 } ]
+                        // (v4.40 关键修改) 使用 startValue 和 endValue
+                        dataZoom: [ 
+                            { type: 'inside', startValue: startValue, endValue: endValue }, 
+                            { type: 'slider', top: '85%', startValue: startValue, endValue: endValue }
+                        ]
                     });
                     
                     myChart.hideLoading(); 
-                } catch (error) {
-                    myChart.showLoading({ text: `K线数据加载失败`, showSpinner: false });
-                }
+                } catch (error) { myChart.showLoading({ text: `K线数据加载失败`, showSpinner: false }); }
             } 
 
-            // --- 4. 加载分时图函数 (v4.16 - 重写以适配 Category 轴) ---
+            // --- 4. 加载分时图函数 (v4.29 - 缓存版) (不变) ---
             async function loadIntradayData() {
                 myChart.showLoading();
                 try {
-                    const response = await fetch(`${API_BASE_URL}/api/gold-intraday`);
+                    const response = await fetch(`${API_BASE_URL}/api/gold-intraday`); // (v4.29) 新 API
                     if (!response.ok) throw new Error(`HTTP 错误! 状态: ${response.status}`);
                     const apiResponse = await response.json();
-                    if (!apiResponse.success || !apiResponse.data || apiResponse.data.length === 0) {
-                        throw new Error("API返回了无效的分时数据");
+                    if (!apiResponse.success || !apiResponse.data) { throw new Error("API返回了无效的分时数据"); }
+                    if (apiResponse.data.length === 0) {
+                         myChart.showLoading({ text: `当前休市中...`, showSpinner: false });
+                         return;
                     }
-
-                    // --- (v4.16 关键修改) ---
-                    // 我们需要创建两个新数组：
-                    const axisLabels = [];   // 1. x轴的时间标签 (e.g., "09:01")
-                    const seriesValues = []; // 2. y轴的价格 (e.g., 550.20)
-                    
-                    const GAP_THRESHOLD_MINUTES = 60; // 超过60分钟
-                    let lastTime = 0;
-
+                    const axisLabels = []; const seriesValues = []; 
+                    const GAP_THRESHOLD_MINUTES = 60; let lastTime = 0;
                     for (let i = 0; i < apiResponse.data.length; i++) {
-                        const point = apiResponse.data[i]; // e.g., ['2025-11-07T09:01:00', 500.50]
+                        const point = apiResponse.data[i]; 
                         const currentTime = new Date(point[0]).getTime();
                         const value = point[1];
-
                         if (i > 0) {
-                            // 检查时间差
                             const gapInMinutes = (currentTime - lastTime) / (1000 * 60);
-                            
-                            if (gapInMinutes > GAP_THRESHOLD_MINUTES) {
-                                // 发现一个大间隔 (例如 02:30 -> 09:00)
-                                // 插入一个空白点来实现“断线”
-                                axisLabels.push(''); // X轴上一个空标签
-                                seriesValues.push('-'); // Y轴上一个空值
-                            }
+                            if (gapInMinutes > GAP_THRESHOLD_MINUTES) { axisLabels.push(''); seriesValues.push('-'); }
                         }
-                        
-                        // 格式化 "HH:MM"
                         var date = new Date(currentTime);
-                        var timeLabel = [date.getHours(), date.getMinutes()].map(function (n) {
-                            return n < 10 ? '0' + n : n;
-                        }).join(':');
-
-                        axisLabels.push(timeLabel); // 添加 "HH:MM" 标签
-                        seriesValues.push(value);   // 添加价格
-                        lastTime = currentTime;     // 更新 "上一个时间"
+                        var timeLabel = [date.getHours(), date.getMinutes()].map(function (n) { return n < 10 ? '0' + n : n; }).join(':');
+                        axisLabels.push(timeLabel); seriesValues.push(value); lastTime = currentTime;     
                     }
-                    // --- (修改结束) ---
-                    myChart.clear();
-                    myChart.setOption(intradayOptionTemplate, true); 
-                    
-                    myChart.setOption({
-                        xAxis: [ 
-                            { data: axisLabels } // <-- 填充 X 轴标签
-                        ],
-                        series: [ 
-                            { data: seriesValues } // <-- 填充 Y 轴价格
-                        ] 
-                    }, false);
-                    
+                    myChart.clear(); myChart.setOption(intradayOptionTemplate, true); 
+                    myChart.setOption({ xAxis: [ { data: axisLabels } ], series: [ { data: seriesValues } ] }, false);
                     myChart.hideLoading();
-                } catch (error) {
-                    console.error("分时图加载失败:", error);
-                    myChart.showLoading({ text: `分时数据加载失败`, showSpinner: false });
-                }
+                } catch (error) { console.error("分时图加载失败:", error); myChart.showLoading({ text: `分时数据加载失败`, showSpinner: false }); }
             }
             
             // --- 5. 绑定按钮事件 (不变) ---
@@ -393,92 +320,50 @@
                 } catch (error) { /* 静默处理错误 */ }
             } 
 
-            // --- [v4.24 新增] 6.5 加载新闻快讯 ---
+            // --- 6.5 加载新闻快讯 (v4.26) (不变) ---
             const newsContent = document.getElementById('news-content');
-
             function formatNewsTime(isoString) {
                 try {
                     const date = new Date(isoString);
-                    const y = date.getFullYear();
-                    const m = (date.getMonth() + 1).toString().padStart(2, '0');
-                    const d = date.getDate().toString().padStart(2, '0');
-                    const h = date.getHours().toString().padStart(2, '0');
+                    const y = date.getFullYear(); const m = (date.getMonth() + 1).toString().padStart(2, '0');
+                    const d = date.getDate().toString().padStart(2, '0'); const h = date.getHours().toString().padStart(2, '0');
                     const min = date.getMinutes().toString().padStart(2, '0');
                     return `${y}-${m}-${d} ${h}:${min}`;
-                } catch(e) {
-                    return isoString; // 格式化失败则返回原文
-                }
+                } catch(e) { return isoString; }
             }
-
             async function loadNewsData() {
                 try {
                     const response = await fetch(`${API_BASE_URL}/api/gold-news`);
-                    if (!response.ok) {
-                        newsContent.innerHTML = '<div class="placeholder">新闻加载失败。</div>';
-                        return;
-                    }
+                    if (!response.ok) { newsContent.innerHTML = '<div class="placeholder">新闻加载失败。</div>'; return; }
                     const apiResponse = await response.json();
-                    
                     if (apiResponse.success && apiResponse.data.length > 0) {
-                        
-                        apiResponse.data.reverse(); // (v4.25 修复) 倒序
-                        
-                        let html = '';
+                        apiResponse.data.reverse(); let html = '';
                         apiResponse.data.forEach(item => {
-                            
-                            // [v4.26 修复] 1. 格式化时间
                             const formattedTime = formatNewsTime(item.report_time);
-                            
-                            // [v4.26 修复] 2. 分离标题和内容
-                            let title = '';
-                            let content = item.report_content;
-                            
+                            let title = ''; let content = item.report_content;
                             if (content.startsWith('【') && content.includes('】')) {
                                 const splitIndex = content.indexOf('】') + 1;
-                                title = content.substring(0, splitIndex);
-                                content = content.substring(splitIndex);
+                                title = content.substring(0, splitIndex); content = content.substring(splitIndex);
                             }
-
-                            html += `
-                                <div class="news-item">
-                                    <div class="news-time">${formattedTime}</div>
-                                    <div class="news-title">${title}</div>
-                                    <div class="news-content">${content}</div>
-                                </div>
-                            `;
+                            html += `<div class="news-item"><div class="news-time">${formattedTime}</div><div class="news-title">${title}</div><div class="news-content">${content}</div></div>`;
                         });
                         newsContent.innerHTML = html;
-                    } else {
-                        newsContent.innerHTML = '<div class="placeholder">暂无新闻。</div>';
-                    }
-                } catch (error) {
-                    console.error("新闻加载失败:", error);
-                    newsContent.innerHTML = '<div class="placeholder">新闻接口请求异常。</div>';
-                }
+                    } else { newsContent.innerHTML = '<div class="placeholder">暂无新闻。</div>'; }
+                } catch (error) { console.error("新闻加载失败:", error); newsContent.innerHTML = '<div class="placeholder">新闻接口请求异常。</div>'; }
             }
             
-            // --- [v4.30 新增] 6.8 加载 AI 预测 ---
-            const aiWidget = document.getElementById('ai-widget');
+            // --- 6.8 加载 AI 预测 (v4.30) (不变) ---
+            const aiContent = document.getElementById('ai-content'); 
             async function loadAIPrediction() {
                 try {
                     const response = await fetch(`${API_BASE_URL}/api/ai-prediction`);
-                    if (!response.ok) {
-                        aiWidget.innerHTML = '<h2>AI分析</h2><div class="placeholder">AI 模型加载失败...</div>';
-                        return;
-                    }
+                    if (!response.ok) { aiContent.innerHTML = '<div class="placeholder">AI 模型加载失败...</div>'; return; }
                     const apiResponse = await response.json();
-                    
-                    let signalColor = '#333'; // 默认
-                    if (apiResponse.signal === '看涨' || apiResponse.signal === '多头趋势') {
-                        signalColor = '#ff4d4f'; // 红色 (涨)
-                    } else if (apiResponse.signal === '看跌' || apiResponse.signal === '空头趋势') {
-                        signalColor = '#52c41a'; // 绿色 (跌)
-                    } else if (apiResponse.signal === '震荡') {
-                        signalColor = '#faad14'; // 黄色
-                    }
-
-                    aiWidget.innerHTML = `
-                        <h2>AI分析 (日K)</h2>
+                    let signalColor = '#333';
+                    if (apiResponse.signal === '看涨' || apiResponse.signal === '多头趋势') { signalColor = '#ff4d4f'; }
+                    else if (apiResponse.signal === '看跌' || apiResponse.signal === '空头趋势') { signalColor = '#52c41a'; }
+                    else if (apiResponse.signal === '震荡') { signalColor = '#faad14'; }
+                    aiContent.innerHTML = `
                         <div style="text-align: center; margin-bottom: 15px;">
                             <div style="font-size: 1.8rem; font-weight: bold; color: ${signalColor};">
                                 ${apiResponse.signal}
@@ -486,25 +371,63 @@
                         </div>
                         <div style="font-size: 0.9rem; color: #888; line-height: 1.4;">
                             <strong>分析:</strong> ${apiResponse.detail}
-                        </div>
-                    `;
-
-                } catch (error) {
-                    console.error("AI 分析加载失败:", error);
-                    aiWidget.innerHTML = '<h2>AI分析</h2><div class="placeholder">AI 分析接口请求异常。</div>';
-                }
+                        </div>`;
+                } catch (error) { console.error("AI 分析加载失败:", error); aiContent.innerHTML = '<div class="placeholder">AI 分析接口请求异常。</div>'; }
             }
 
-            // --- 7. 初始加载 (不变) ---
+            // --- 6.9 加载全球市场数据 (v4.31) (不变) ---
+            const marketsContent = document.getElementById('global-markets-content');
+            function renderMarketItem(name, data) {
+                // (v4.35) 健壮性检查
+                if (typeof data.price !== 'number' || typeof data.change_pct !== 'number') {
+                     return `<div class="global-market-item"><span class="name">${name}</span> <span class="price">数据获取失败</span></div>`;
+                }
+                let price = parseFloat(data.price);
+                let change = parseFloat(data.change_pct);
+                let changeClass = 'change-flat';
+                if (change > 0) changeClass = 'change-up';
+                else if (change < 0) changeClass = 'change-down';
+                return `
+                    <div class="global-market-item">
+                        <span class="name">${name}</span>
+                        <div>
+                            <span class="price">${price.toFixed(2)}</span>
+                            <span class="change ${changeClass}">
+                                ${(change > 0 ? '+' : '') + change.toFixed(2)}%
+                            </span>
+                        </div>
+                    </div>`;
+            }
+            async function loadGlobalMarkets() {
+                try {
+                    const response = await fetch(`${API_BASE_URL}/api/global-markets`);
+                    if (!response.ok) { marketsContent.innerHTML = '<div class="placeholder">全球市场加载失败。</div>'; return; }
+                    const apiResponse = await response.json();
+                    
+                    if (apiResponse.success && apiResponse.data) {
+                        let html = '';
+                        html += renderMarketItem('国际黄金 (XAU/USD)', apiResponse.data.xau_usd);
+                        html += renderMarketItem('美元指数 (DXY)', apiResponse.data.dxy);
+                        html += renderMarketItem('美债10年 (US 10Y)', apiResponse.data.us_10y);
+                        marketsContent.innerHTML = html;
+                    } else {
+                        marketsContent.innerHTML = '<div class="placeholder">暂无数据。</div>';
+                    }
+                } catch (error) { console.error("全球市场加载失败:", error); marketsContent.innerHTML = '<div class="placeholder">全球市场接口异常。</div>'; }
+            }
+            
+            // --- 7. 初始加载 (v4.31) (不变) ---
             loadIntradayData(); 
             loadRealtimeQuote(); 
-            loadNewsData();
+            loadNewsData(); 
             loadAIPrediction();
+            loadGlobalMarkets(); 
 
-            setInterval(loadRealtimeQuote, 10000); // 10秒刷新
-            setInterval(loadNewsData, 15 * 60 * 1000); // 15分钟刷新新闻
-            setInterval(loadAIPrediction, 15 * 60 * 1000); // 15分钟刷新AI预测
-
+            setInterval(loadRealtimeQuote, 10000); 
+            setInterval(loadNewsData, 15 * 60 * 1000); 
+            setInterval(loadAIPrediction, 15 * 60 * 1000); 
+            setInterval(loadGlobalMarkets, 10 * 60 * 1000); 
+            
             window.addEventListener('resize', () => myChart.resize());
             
         });
