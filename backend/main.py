@@ -132,6 +132,7 @@ async def update_news_cache_periodically():
 # --- (v4.29) 后台分时图定时任务 (不变) ---
 def get_sge_trade_date_and_hour():
     now = datetime.datetime.now()
+    print(f"[调试] 当前服务器时间: {now}")
     hour = now.hour
     # 夜盘属于次日交易日
     if hour >= 20:
