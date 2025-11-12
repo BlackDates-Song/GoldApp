@@ -9,6 +9,10 @@ from fastapi.responses import FileResponse
 import os
 import datetime
 import asyncio
+import pytz
+
+# --- (v4.49 新增) 定义上海时区 ---
+TZ_SHANGHAI = pytz.timezone('Asia/Shanghai')
 
 # --- 1. 缓存 (用于K线, 新闻, 和 宏观数据) ---
 cached_data: Dict[str, Any] = {}
@@ -131,8 +135,7 @@ async def update_news_cache_periodically():
 
 # --- (v4.29) 后台分时图定时任务 (不变) ---
 def get_sge_trade_date_and_hour():
-    now = datetime.datetime.now()
-    print(f"[调试] 当前服务器时间: {now}")
+    now = datetime.datetime.now(TZ_SHANGHAI)
     hour = now.hour
     # 夜盘属于次日交易日
     if hour >= 20:
@@ -162,7 +165,9 @@ async def update_intraday_cache():
     if (current_hour >= 20 or current_hour < 3) or (9 <= current_hour < 16):
         try:
             data_df = await asyncio.to_thread(ak.spot_quotations_sge, symbol="Au99.99")
-            if data_df.empty: return
+            if data_df.empty: 
+                print("--- !!! [分时图任务] AkShare 未能下载 SGE 'Au99.99' 分时数据。 ---")
+                return
 
             processed = []
             time_col = '时间' if '时间' in data_df.columns else 'TIME'
@@ -281,7 +286,7 @@ async def fetch_and_cache_global_markets():
 async def update_global_markets_periodically():
     while True:
         await fetch_and_cache_global_markets()
-        await asyncio.sleep(10 * 60) # 每 10 分钟刷新一次
+        await asyncio.sleep(24 * 60 * 60) # 每天刷新一次
 
 # --- (v4.41 新增) 国内宏观数据获取函数 ---
 async def fetch_and_cache_domestic_macro():
@@ -408,7 +413,7 @@ async def get_gold_intraday():
 @app.get("/api/gold-realtime-quote")
 async def get_gold_realtime_quote():
     try:
-        now = datetime.datetime.now(); server_update_time_str = now.strftime("%Y-%m-%d %H:%M:%S") 
+        now = datetime.datetime.now(TZ_SHANGHAI); server_update_time_str = now.strftime("%Y-%m-%d %H:%M:%S") 
         data_df = await asyncio.to_thread(ak.spot_quotations_sge, symbol="Au99.99")
         if data_df.empty: raise HTTPException(status_code=404, detail="未返回实时数据")
         latest_quote = data_df.iloc[-1]; time_col = '时间' if '时间' in latest_quote else 'TIME'
