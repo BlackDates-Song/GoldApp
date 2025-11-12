@@ -260,17 +260,27 @@
             } 
 
             // --- 4. 加载分时图函数 (v4.29 - 缓存版) (不变) ---
-            async function loadIntradayData() {
-                myChart.showLoading();
+            // --- 4. 加载分时图函数 (v4.44 - 修复刷新动画) ---
+            async function loadIntradayData(showAnimation = true) { // <-- [v4.44] 添加参数
+                if (showAnimation) {
+                    myChart.showLoading(); // <-- [v4.44] 只有在需要时才显示
+                }
                 try {
-                    const response = await fetch(`${API_BASE_URL}/api/gold-intraday`); // (v4.29) 新 API
+                    const response = await fetch(`${API_BASE_URL}/api/gold-intraday`); 
                     if (!response.ok) throw new Error(`HTTP 错误! 状态: ${response.status}`);
                     const apiResponse = await response.json();
-                    if (!apiResponse.success || !apiResponse.data) { throw new Error("API返回了无效的分时数据"); }
+                    
+                    if (!apiResponse.success || !apiResponse.data) { 
+                        if (showAnimation) myChart.showLoading({ text: `API返回了无效的分时数据`, showSpinner: false });
+                        return; 
+                    }
                     if (apiResponse.data.length === 0) {
-                         myChart.showLoading({ text: `当前休市中...`, showSpinner: false });
+                         if (showAnimation) { // <-- [v4.44]
+                            myChart.showLoading({ text: `当前休市中...`, showSpinner: false });
+                         }
                          return;
                     }
+
                     const axisLabels = []; const seriesValues = []; 
                     const GAP_THRESHOLD_MINUTES = 60; let lastTime = 0;
                     for (let i = 0; i < apiResponse.data.length; i++) {
@@ -285,10 +295,27 @@
                         var timeLabel = [date.getHours(), date.getMinutes()].map(function (n) { return n < 10 ? '0' + n : n; }).join(':');
                         axisLabels.push(timeLabel); seriesValues.push(value); lastTime = currentTime;     
                     }
-                    myChart.clear(); myChart.setOption(intradayOptionTemplate, true); 
-                    myChart.setOption({ xAxis: [ { data: axisLabels } ], series: [ { data: seriesValues } ] }, false);
-                    myChart.hideLoading();
-                } catch (error) { console.error("分时图加载失败:", error); myChart.showLoading({ text: `分时数据加载失败`, showSpinner: false }); }
+                    
+                    // (v4.44) 切换图表时(showAnimation=true)，才清除旧图表并重置模板
+                    if (showAnimation) {
+                        myChart.clear();
+                        myChart.setOption(intradayOptionTemplate, true);
+                    }
+                    
+                    myChart.setOption({ 
+                        xAxis: [ { data: axisLabels } ], 
+                        series: [ { data: seriesValues } ] 
+                    });// [v4.44] 关键: 刷新时(false)合并(true)，点击时(true)不合并(false)
+
+                    if (showAnimation) {
+                        myChart.hideLoading(); // [v4.44] 对应 showLoading
+                    }
+                } catch (error) { 
+                    console.error("分时图加载失败:", error); 
+                    if (showAnimation) { // <-- [v4.44]
+                        myChart.showLoading({ text: `分时数据加载失败`, showSpinner: false }); 
+                    }
+                }
             }
             
             // --- 5. 绑定按钮事件 (不变) ---
@@ -424,6 +451,9 @@
             loadGlobalMarkets(); 
 
             setInterval(loadRealtimeQuote, 10000); 
+            setInterval(() => {
+                loadIntradayData(false);
+            }, 10 * 1000);
             setInterval(loadNewsData, 15 * 60 * 1000); 
             setInterval(loadAIPrediction, 15 * 60 * 1000); 
             setInterval(loadGlobalMarkets, 10 * 60 * 1000); 

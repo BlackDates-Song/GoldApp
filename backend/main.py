@@ -206,7 +206,6 @@ async def intraday_cache_loop():
 
 
 # --- (v4.33 优化版) 宏观数据获取函数 ---
-# --- (v4.35 优化版) 宏观数据获取函数 ---
 async def fetch_and_cache_global_markets():
     """
     (v4.35) 优化: 使用代码 (GC00Y, UDI) 代替名称
@@ -283,6 +282,65 @@ async def update_global_markets_periodically():
         await fetch_and_cache_global_markets()
         await asyncio.sleep(10 * 60) # 每 10 分钟刷新一次
 
+# --- (v4.41 新增) 国内宏观数据获取函数 ---
+async def fetch_and_cache_domestic_macro():
+    """
+    (v4.41) 独立获取国内宏观指标 (CPI, PPI, M2, GDP)
+    """
+    print("--- [国内宏观任务] 正在加载国内宏观数据... ---")
+    results = {}
+    
+    # 1. 获取 CPI (同比)
+    try:
+        df = await asyncio.to_thread(ak.macro_china_cpi)
+        # 提取 "全国-同比增长" 列的第一个值
+        latest_cpi = df.iloc[0]['全国-同比增长']
+        results["cpi_yoy"] = float(latest_cpi)
+    except Exception as e:
+        print(f"--- !!! [国内宏观任务] 获取 CPI 失败: {e} !!! ---")
+        results["cpi_yoy"] = "N/A"
+
+    # 2. 获取 PPI (同比)
+    try:
+        df = await asyncio.to_thread(ak.macro_china_ppi)
+        # 提取 "当月同比增长" 列的第一个值
+        latest_ppi = df.iloc[0]['当月同比增长']
+        results["ppi_yoy"] = float(latest_ppi)
+    except Exception as e:
+        print(f"--- !!! [国内宏观任务] 获取 PPI 失败: {e} !!! ---")
+        results["ppi_yoy"] = "N/A"
+
+    # 3. 获取 M2 (同比)
+    try:
+        df = await asyncio.to_thread(ak.macro_china_money_supply)
+        # 提取 "货币和准货币(M2)-同比增长" 列的第一个值
+        latest_m2 = df.iloc[0]['货币和准货币(M2)-同比增长']
+        results["m2_yoy"] = float(latest_m2)
+    except Exception as e:
+        print(f"--- !!! [国内宏观任务] 获取 M2 失败: {e} !!! ---")
+        results["m2_yoy"] = "N/A"
+        
+    # 4. 获取 GDP (同比)
+    try:
+        df = await asyncio.to_thread(ak.macro_china_gdp)
+        # 提取 "国内生产总值-同比增长" 列的第一个值
+        latest_gdp = df.iloc[0]['国内生产总值-同比增长']
+        results["gdp_yoy"] = float(latest_gdp)
+    except Exception as e:
+        print(f"--- !!! [国内宏观任务] 获取 GDP 失败: {e} !!! ---")
+        results["gdp_yoy"] = "N/A"
+
+    cached_data['domestic_macro'] = results
+    print(f"--- [国内宏观任务 v4.41] 国内宏观数据已缓存: {results} ---")
+
+# --- (v4.41 新增) 国内宏观后台定时任务 ---
+async def update_domestic_macro_periodically():
+    while True:
+        # 宏观数据每天更新一次就足够了
+        await asyncio.sleep(24 * 60 * 60) # 24 小时
+        print("--- [定时任务] 正在刷新国内宏观数据... ---")
+        await fetch_and_cache_domestic_macro()
+
 
 # --- 3. 'lifespan' (v4.32 - 关键修复：并行启动) ---
 @asynccontextmanager
@@ -295,6 +353,7 @@ async def lifespan(app: FastAPI):
     task_news = asyncio.create_task(fetch_and_cache_news())
     task_intraday = asyncio.create_task(update_intraday_cache())
     task_global = asyncio.create_task(fetch_and_cache_global_markets())
+    task_domestic_macro = asyncio.create_task(fetch_and_cache_domestic_macro())
 
     # 2. (v4.32 关键) *并行* 运行所有初始任务
     print("--- [启动] 正在并行加载所有初始数据 (K线, 新闻, 分时图, 宏观)... ---")
@@ -302,7 +361,8 @@ async def lifespan(app: FastAPI):
         task_k_lines,
         task_news,
         task_intraday,
-        task_global
+        task_global,
+        task_domestic_macro
     )
     print("--- [启动] 所有初始数据加载完毕! 服务器准备就绪。 ---")
 
@@ -310,6 +370,7 @@ async def lifespan(app: FastAPI):
     asyncio.create_task(update_news_cache_periodically())
     asyncio.create_task(intraday_cache_loop())
     asyncio.create_task(update_global_markets_periodically())
+    asyncio.create_task(update_domestic_macro_periodically())
     
     print("--- [启动] 所有后台定时刷新任务已启动 ---")
         
@@ -318,6 +379,7 @@ async def lifespan(app: FastAPI):
 
 # --- 4. 创建 FastAPI 应用 (不变) ---
 app = FastAPI(lifespan=lifespan)
+
 # --- 5. 配置 CORS (不变) ---
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 
@@ -325,7 +387,6 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, 
 # --- *** 6. 所有的 API 路由 ***
 # --- 
 
-# ... (get_gold_data, get_gold_intraday, get_gold_realtime_quote 不变) ...
 @app.get("/api/gold-data")
 async def get_gold_data(period: str = "daily"): 
     if period not in cached_data: raise HTTPException(status_code=400, detail="无效的 'period' 参数。")
@@ -395,7 +456,17 @@ async def get_global_markets():
         raise HTTPException(status_code=500, detail="全球市场数据尚未加载。")
     
     return {"success": True, "data": cached_data['global_markets']}
-# --- (v4.31 结束) ---
+
+# --- (v4.41 新增) 国内宏观 API ---
+@app.get("/api/domestic-macro")
+async def get_domestic_macro():
+    """
+    (v4.41) 从缓存中获取国内宏观指标
+    """
+    if "domestic_macro" not in cached_data or not cached_data.get("domestic_macro"):
+        raise HTTPException(status_code=503, detail="国内宏观数据正在加载中。")
+    
+    return {"success": True, "data": cached_data['domestic_macro']}
 
 
 # --- 
