@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SGE 黄金仪表盘 (v4.40 - 动态缩放)</title>
+    <title>SGE 黄金仪表盘 (v4.50 - 国内宏观)</title>
     <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
     
     <style>
@@ -72,6 +72,29 @@
         .change-down { background-color: #52c41a; } /* 跌 (绿) */
         .change-flat { background-color: #aaa; } /* 平 */
 
+        .macro-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 1rem;
+            margin-bottom: 10px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        .macro-item:last-child {
+            border-bottom: none;
+            margin-bottom: 0;
+            padding-bottom: 0;
+        }
+        .macro-item .name {
+            font-weight: bold;
+            color: #333;
+        }
+        .macro-item .value {
+            font-size: 1.1rem;
+            font-weight: bold;
+        }
+
         @media (max-width: 992px) {
             body { padding: 5px; }
             .top-row { flex-direction: column; }
@@ -80,7 +103,8 @@
             .sidebar-content { min-width: 100%; order: 1; }
             #realtime-quote-widget { order: 1; }
             #global-markets-widget { order: 2; }
-            #ai-widget { order: 3; } 
+            #domestic-macro-widget { order: 3; }
+            #ai-widget { order: 4; } 
             #chart-container { height: 400px; }
             h1 { font-size: 1.5rem; }
             .realtime-price { font-size: 1.8rem; }
@@ -118,6 +142,13 @@
                 <div id="global-markets-widget" class="widget-card">
                     <h2>全球市场</h2>
                     <div id="global-markets-content">
+                        <div class="placeholder">正在加载...</div>
+                    </div>
+                </div>
+
+                <div id="domestic-macro-widget" class="widget-card">
+                    <h2>国内宏观</h2>
+                    <div id="domestic-macro-content">
                         <div class="placeholder">正在加载...</div>
                     </div>
                 </div>
@@ -259,7 +290,6 @@
                 } catch (error) { myChart.showLoading({ text: `K线数据加载失败`, showSpinner: false }); }
             } 
 
-            // --- 4. 加载分时图函数 (v4.29 - 缓存版) (不变) ---
             // --- 4. 加载分时图函数 (v4.44 - 修复刷新动画) ---
             async function loadIntradayData(showAnimation = true) { // <-- [v4.44] 添加参数
                 if (showAnimation) {
@@ -442,6 +472,45 @@
                     }
                 } catch (error) { console.error("全球市场加载失败:", error); marketsContent.innerHTML = '<div class="placeholder">全球市场接口异常。</div>'; }
             }
+
+            // --- [v4.50 新增] 7.0 加载国内宏观数据 ---
+            const domesticMacroContent = document.getElementById('domestic-macro-content');
+            function renderMacroItem(name, value) {
+                if (typeof value !== 'number') {
+                    return `<div class="macro-item"><span class="name">${name}</span> <span class="value">N/A</span></div>`;
+                }
+                
+                // 自动判断正负并上色
+                let valueColor = '#333';
+                if (value > 0) valueColor = '#ff4d4f'; // 红色 (通胀/增长)
+                if (value < 0) valueColor = '#52c41a'; // 绿色 (通缩/衰退)
+                
+                return `
+                    <div class="macro-item">
+                        <span class="name">${name}</span>
+                        <span class="value" style="color: ${valueColor};">
+                            ${value.toFixed(1)}%
+                        </span>
+                    </div>`;
+            }
+            async function loadDomesticMacro() {
+                try {
+                    const response = await fetch(`${API_BASE_URL}/api/domestic-macro`);
+                    if (!response.ok) { domesticMacroContent.innerHTML = '<div class="placeholder">国内宏观加载失败。</div>'; return; }
+                    const apiResponse = await response.json();
+                    
+                    if (apiResponse.success && apiResponse.data) {
+                        let html = '';
+                        html += renderMacroItem('CPI 同比', apiResponse.data.cpi_yoy);
+                        html += renderMacroItem('PPI 同比', apiResponse.data.ppi_yoy);
+                        html += renderMacroItem('M2 同比', apiResponse.data.m2_yoy);
+                        html += renderMacroItem('GDP 同比', apiResponse.data.gdp_yoy);
+                        domesticMacroContent.innerHTML = html;
+                    } else {
+                        domesticMacroContent.innerHTML = '<div class="placeholder">暂无数据。</div>';
+                    }
+                } catch (error) { console.error("国内宏观加载失败:", error); domesticMacroContent.innerHTML = '<div class="placeholder">国内宏观接口异常。</div>'; }
+            }
             
             // --- 7. 初始加载 (v4.31) (不变) ---
             loadIntradayData(); 
@@ -449,14 +518,14 @@
             loadNewsData(); 
             loadAIPrediction();
             loadGlobalMarkets(); 
+            loadDomesticMacro();
 
             setInterval(loadRealtimeQuote, 10000); 
-            setInterval(() => {
-                loadIntradayData(false);
-            }, 10 * 1000);
+            setInterval(() => loadIntradayData(false), 10 * 1000);
             setInterval(loadNewsData, 15 * 60 * 1000); 
             setInterval(loadAIPrediction, 15 * 60 * 1000); 
             setInterval(loadGlobalMarkets, 10 * 60 * 1000); 
+            setInterval(loadDomesticMacro, 10 * 60 * 1000);
             
             window.addEventListener('resize', () => myChart.resize());
             
