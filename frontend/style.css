@@ -1,0 +1,99 @@
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background-color: #f0f2f5; margin: 0; padding: 10px; color: #333;
+}
+h1 { text-align: center; margin-bottom: 20px; font-size: 1.8rem; }
+.dashboard-container { 
+    display: flex; flex-direction: column; 
+    width: 100%; max-width: 1600px; margin: 0 auto; 
+    gap: 20px; 
+}
+.top-row { display: flex; gap: 20px; width: 100%; }
+.bottom-row { width: 100%; }
+.main-content { flex: 7; min-width: 600px; box-sizing: border-box; }
+.sidebar-content { 
+    flex: 3; min-width: 300px; display: flex; 
+    flex-direction: column; gap: 20px; 
+}
+.widget-card {
+    background-color: #ffffff; border: 1px solid #e8e8e8; border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05); padding: 20px; box-sizing: border-box;
+    width: 100%; 
+}
+.widget-card h2 {
+    margin-top: 0; margin-bottom: 15px; font-size: 1.25rem;
+    border-bottom: 1px solid #f0f0f0; padding-bottom: 10px;
+}
+#chart-container { width: 100%; height: 550px; }
+#k-line-controls { display: flex; gap: 10px; margin-bottom: 15px; flex-wrap: wrap;}
+.k-line-button {
+    padding: 8px 16px; font-size: 0.9rem; border: 1px solid #d9d9d9;
+    background-color: #fff; color: #555; border-radius: 4px; cursor: pointer;
+    transition: all 0.2s ease;
+}
+.k-line-button:hover { border-color: #40a9ff; color: #40a9ff; }
+.k-line-button.active { background-color: #1890ff; color: #fff; border-color: #1890ff; }
+.realtime-price { font-size: 2.0rem; font-weight: bold; color: #ff4d4f; margin-bottom: 10px; }
+.realtime-time { font-size: 0.9rem; color: #888; }
+.placeholder { color: #999; font-style: italic; }
+
+/* 新闻模块样式 (不变) */
+#news-content { height: 400px; overflow-y: auto; padding-right: 10px; }
+.news-item { border-bottom: 1px solid #f0f0f0; padding: 10px 0; margin-bottom: 5px; }
+.news-item:last-child { border-bottom: none; }
+.news-time { font-size: 0.85rem; color: #888; margin-bottom: 8px; }
+.news-title { font-size: 1rem; font-weight: bold; color: #333; margin-bottom: 5px; line-height: 1.4; }
+.news-content { font-size: 0.95rem; line-height: 1.5; color: #555; }
+
+/* 全球市场模块样式 (不变) */
+.global-market-item {
+    display: flex; justify-content: space-between; align-items: center;
+    font-size: 1rem; margin-bottom: 12px; padding-bottom: 12px;
+    border-bottom: 1px solid #f0f0f0;
+}
+.global-market-item:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
+.global-market-item .name { font-weight: bold; color: #333; }
+.global-market-item .price { font-size: 1.1rem; font-weight: bold; }
+.global-market-item .change {
+    font-size: 1rem; font-weight: bold; padding: 4px 8px;
+    border-radius: 4px; color: #fff;
+}
+.change-up { background-color: #ff4d4f; } /* 涨 (红) */
+.change-down { background-color: #52c41a; } /* 跌 (绿) */
+.change-flat { background-color: #aaa; } /* 平 */
+.macro-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 1rem;
+    margin-bottom: 10px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #f0f0f0;
+}
+.macro-item:last-child {
+    border-bottom: none;
+    margin-bottom: 0;
+    padding-bottom: 0;
+}
+.macro-item .name {
+    font-weight: bold;
+    color: #333;
+}
+.macro-item .value {
+    font-size: 1.1rem;
+    font-weight: bold;
+}
+@media (max-width: 992px) {
+    body { padding: 5px; }
+    .top-row { flex-direction: column; }
+    .main-content { min-width: 100%; order: 2; } 
+    .widget-card { padding: 15px; } 
+    .sidebar-content { min-width: 100%; order: 1; }
+    #realtime-quote-widget { order: 1; }
+    #global-markets-widget { order: 2; }
+    #domestic-macro-widget { order: 3; }
+    #ai-widget { order: 4; } 
+    #chart-container { height: 400px; }
+    h1 { font-size: 1.5rem; }
+    .realtime-price { font-size: 1.8rem; }
+}
