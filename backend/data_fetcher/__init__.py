@@ -12,3 +12,5 @@ from .intraday import update_intraday_cache, intraday_cache_loop
 from .global_markets import fetch_and_cache_global_markets, update_global_markets_periodically
 
 from .domestic_macro import fetch_and_cache_domestic_macro, update_domestic_macro_periodically
+
+from .market_indicators import fetch_and_cache_market_indicators, update_market_indicators_periodically

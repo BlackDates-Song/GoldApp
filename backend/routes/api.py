@@ -88,3 +88,13 @@ async def get_domestic_macro():
         raise HTTPException(status_code=503, detail="国内宏观数据正在加载中。")
     
     return {"success": True, "data": cached_data['domestic_macro']}
+
+# --- (v4.50 新增) 市场指标 API ---
+@router.get("/api/market-indicators")
+async def get_market_indicators():
+    """
+    (v4.50) 从缓存中获取市场指标
+    """
+    if "market_indicators" not in cached_data or not cached_data.get("market_indicators"):
+        raise HTTPException(status_code=503, detail="市场指标数据正在加载中。")
+    return {"success": True, "data": cached_data['market_indicators']}

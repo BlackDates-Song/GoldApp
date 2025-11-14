@@ -127,6 +127,48 @@ export function renderDomesticMacro(element, data) {
     element.innerHTML = html;
 }
 
+// --- 6. 市场指标 ---
+function renderMarketIndicatorItem(name, data, unit = '', digits = 2) {
+    if (typeof data === 'object' && data.price !== 'N/A') {
+        let price = parseFloat(data.price);
+        let change = parseFloat(data.change_pct);
+        let changeClass = 'change-flat';
+        if (change > 0) changeClass = 'change-up';
+        else if (change < 0) changeClass = 'change-down';
+        return `
+            <div class="market-item">
+                <span class="name">${name}</span>
+                <div>
+                    <span class="price">${price.toFixed(digits)} ${unit}</span>
+                    <span class="change ${changeClass}">
+                        ${(change > 0 ? '+' : '') + change.toFixed(2)}%
+                    </span>
+                </div>
+            </div>`;
+    }
+    else if (typeof data === 'number') {
+        return `
+            <div class="market-item">
+                <span class="name">${name}</span>
+                <span class="value">${data.toFixed(digits)} ${unit}</span>
+            </div>`;
+    }
+    return `<div class="market-item"><span class="name">${name}</span> <span class="value">N/A</span></div>`;
+}
+export function renderMarketIndicators(element, data) {
+    if (!data) {
+        element.innerHTML = '<div class="placeholder">暂无数据。</div>';
+        return;
+    }
+    let html = '';
+    html += renderMarketIndicatorItem('USD/CNY 汇率', data.usd_cny, '', 4); 
+    html += renderMarketIndicatorItem('LPR (1年)', data.lpr_1y, '%');
+    html += renderMarketIndicatorItem('上证指数', data.sh_index, '点');
+    // [v4.77] 更新名称以反映 SPDR
+    html += renderMarketIndicatorItem('SPDR黄金ETF持仓', data.gold_etf_holdings, '吨');
+    element.innerHTML = html;
+}
+
 // --- 7. 错误/加载状态 ---
 export function renderLoading(element, text = '正在加载...') {
     element.innerHTML = `<div class="placeholder">${text}</div>`;

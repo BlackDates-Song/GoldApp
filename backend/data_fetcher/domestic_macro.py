@@ -10,8 +10,9 @@ async def _get_cpi_yoy():
     """
     try:
         df = await asyncio.to_thread(ak.macro_china_cpi)
-        latest_cpi = df.iloc[0]['全国-同比增长']
-        return float(latest_cpi)
+        if df is not None:
+            latest_cpi = df.iloc[0]['全国-同比增长']
+            return float(latest_cpi)  
     except Exception as e:
         print(f"--- !!! [国内宏观任务] 获取 CPI 失败: {e} !!! ---")
         return "N/A"
@@ -22,8 +23,9 @@ async def _get_ppi_yoy():
     """
     try:
         df = await asyncio.to_thread(ak.macro_china_ppi)
-        latest_ppi = df.iloc[0]['当月同比增长']
-        return float(latest_ppi)
+        if df is not None:
+            latest_ppi = df.iloc[0]['当月同比增长']
+            return float(latest_ppi)
     except Exception as e:
         print(f"--- !!! [国内宏观任务] 获取 PPI 失败: {e} !!! ---")
         return "N/A"
@@ -34,8 +36,9 @@ async def _get_m2_yoy():
     """
     try:
         df = await asyncio.to_thread(ak.macro_china_money_supply)
-        latest_m2 = df.iloc[0]['货币和准货币(M2)-同比增长']
-        return float(latest_m2)
+        if df is not None:
+            latest_m2 = df.iloc[0]['货币和准货币(M2)-同比增长']
+            return float(latest_m2)
     except Exception as e:
         print(f"--- !!! [国内宏观任务] 获取 M2 失败: {e} !!! ---")
         return "N/A"
@@ -46,8 +49,9 @@ async def _get_gdp_yoy():
     """
     try:
         df = await asyncio.to_thread(ak.macro_china_gdp)
-        latest_gdp = df.iloc[0]['国内生产总值-同比增长']
-        return float(latest_gdp)
+        if df is not None:
+            latest_gdp = df.iloc[0]['国内生产总值-同比增长']
+            return float(latest_gdp)
     except Exception as e:
         print(f"--- !!! [国内宏观任务] 获取 GDP 失败: {e} !!! ---")
         return "N/A"

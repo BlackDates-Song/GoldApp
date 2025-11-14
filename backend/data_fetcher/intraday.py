@@ -24,7 +24,7 @@ async def update_intraday_cache():
     if (current_hour >= 20 or current_hour < 3) or (9 <= current_hour < 16):
         try:
             data_df = await asyncio.to_thread(ak.spot_quotations_sge, symbol="Au99.99")
-            if data_df.empty: 
+            if data_df is None: 
                 print("--- !!! [分时图任务] AkShare 未能下载 SGE 'Au99.99' 分时数据。 ---")
                 return
 

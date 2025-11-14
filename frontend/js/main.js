@@ -1,3 +1,5 @@
+// frontend/js/main.js
+
 // 1. 从其他模块导入
 import { 
     fetchNewsData, 
@@ -29,7 +31,7 @@ document.addEventListener("DOMContentLoaded", function() {
     
     // 3. 初始化图表和获取 DOM 元素
     const chartContainer = document.getElementById('chart-container');
-    const myChart = echarts.init(chartContainer);
+    const myChart = window.echarts.init(chartContainer);
     
     const quoteContent = document.getElementById('realtime-content');
     const newsContent = document.getElementById('news-content');
