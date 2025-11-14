@@ -224,13 +224,13 @@ async def fetch_and_cache_global_markets():
     # 1. 获取 XAU/USD (国际金价)
     try:
         # (v4.35 修复) 使用代码 "GC00Y"
-        df = await asyncio.to_thread(ak.futures_global_hist_em, symbol="GC00Y")
+        df = await asyncio.to_thread(ak.futures_global_spot_em)
         
-        latest_data = df.iloc[-1]
+        xau_usd_data = df[df['代码'] == 'GC00Y'].iloc[0]
         
         results["xau_usd"] = {
-            "price": float(latest_data['最新价']),
-            "change_pct": float(latest_data['涨幅']) 
+            "price": float(xau_usd_data['最新价']),
+            "change_pct": float(xau_usd_data['涨跌幅']) 
         }
     except Exception as e:
         print(f"--- !!! [宏观任务] 获取 XAU/USD (GC00Y) 失败: {e} !!! ---")
@@ -238,15 +238,14 @@ async def fetch_and_cache_global_markets():
 
     # 2. 获取 DXY (美元指数)
     try:
-        # (v4.35 修复) 使用代码 "UDI"
-        df = await asyncio.to_thread(ak.index_global_hist_em, symbol="美元指数")
+        df = await asyncio.to_thread(ak.index_global_spot_em) #
+        # 按 "代码" "UDI" 查找
+        dxy_data = df[df['代码'] == 'UDI'].iloc[0]
         
-        latest_data = df.iloc[-1]
-        
-        # 假设列名与 futures_global_hist_em 相同 (最新价, 涨幅)
+        # 假设列名与 futures_global_hist_em 相同 (最新价, 振幅)
         results["dxy"] = {
-            "price": float(latest_data['最新价']),
-            "change_pct": float(latest_data['振幅'])
+            "price": float(dxy_data['最新价']),
+            "change_pct": float(dxy_data['振幅'])
         }
     except Exception as e:
         print(f"--- !!! [宏观任务] 获取 DXY (UDI) 失败: {e} !!! ---")
@@ -285,8 +284,10 @@ async def fetch_and_cache_global_markets():
 # --- (v4.31) 宏观数据后台定时任务 (不变) ---
 async def update_global_markets_periodically():
     while True:
+        await asyncio.sleep(15 * 60) # 每15分钟刷新一次
+        print("--- [定时任务] 正在刷新全球市场数据... ---")
         await fetch_and_cache_global_markets()
-        await asyncio.sleep(24 * 60 * 60) # 每天刷新一次
+        
 
 # --- (v4.41 新增) 国内宏观数据获取函数 ---
 async def fetch_and_cache_domestic_macro():
@@ -346,7 +347,6 @@ async def update_domestic_macro_periodically():
         await asyncio.sleep(24 * 60 * 60) # 24 小时
         print("--- [定时任务] 正在刷新国内宏观数据... ---")
         await fetch_and_cache_domestic_macro()
-
 
 # --- 3. 'lifespan' (v4.32 - 关键修复：并行启动) ---
 @asynccontextmanager
