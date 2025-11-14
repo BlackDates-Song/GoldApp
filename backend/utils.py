@@ -3,11 +3,8 @@ import pandas as pd
 import numpy as np
 import datetime
 
-<<<<<<< HEAD
 from typing import Dict, Any
 
-=======
->>>>>>> d38a5157b55ca8947f6d0e190d59cc077f78e7c5
 # --- (v4.49 新增) 定义上海时区 ---
 TZ_SHANGHAI = pytz.timezone('Asia/Shanghai')
 
