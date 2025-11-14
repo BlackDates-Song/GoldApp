@@ -25,11 +25,11 @@ COPY frontend/ ./frontend/
 WORKDIR /app/backend
 
 # --- 6. 暴露端口 ---
-# 告诉 Docker 容器将监听 8000 端口
-EXPOSE 8000
+# 告诉 Docker 容器将监听 8080 端口
+EXPOSE 8080
 
 # --- 7. 生产环境启动命令 ---
 # 这是在生产环境中运行 Uvicorn 的正确方式
 # 它会运行 backend/app.py 文件中的 app 实例
 # --host 0.0.0.0 允许外部访问
-CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8080"]
