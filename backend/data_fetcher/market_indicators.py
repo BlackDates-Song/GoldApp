@@ -11,7 +11,7 @@ async def _get_usd_cny():
     try:
         df = await asyncio.to_thread(ak.forex_spot_em)
         if df is not None:
-            usd_cny_data = df[df['代码'] == 'USDCHN'].iloc[0]
+            usd_cny_data = df[df['代码'] == 'USDCNH'].iloc[0]
             return {
                 "price": float(usd_cny_data['最新价']),
                 "change_pct": float(usd_cny_data['涨跌幅'])
