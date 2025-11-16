@@ -123,7 +123,7 @@ export function renderDomesticMacro(element, data) {
     html += renderMacroItem('PPI 同比', data.ppi_yoy);
     html += renderMacroItem('M2 同比', data.m2_yoy);
     html += renderMacroItem('GDP 同比', data.gdp_yoy);
-    html += renderMacroItem('央行购金-月增', data.pboc_gold_buy, '万盎司', 2);
+    html += renderMacroItem('央行购金-月增', data.pboc_gold_buy, ' 万盎司', 2);
     element.innerHTML = html;
 }
 
@@ -164,6 +164,7 @@ export function renderMarketIndicators(element, data) {
     html += renderMarketIndicatorItem('USD/CNY 汇率', data.usd_cny, '', 4); 
     html += renderMarketIndicatorItem('LPR (1年)', data.lpr_1y, '%');
     html += renderMarketIndicatorItem('上证指数', data.sh_index, '点');
+    html += renderMarketIndicatorItem('7天回购定盘利率', data.repo_rate_7d, '%');
     // [v4.98] 为慢速数据添加一个带 ID 的占位符
     html += `
         <div class="market-item">

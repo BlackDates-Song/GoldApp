@@ -2,6 +2,7 @@ import asyncio
 import pandas as pd
 import akshare as ak
 import yfinance as yf
+import datetime
 
 from cache import cached_data
 
@@ -33,6 +34,8 @@ async def _get_lpr_1y():
         if df is not None:
             latest_lpr = df.iloc[-1]['LPR1Y']
             return float(latest_lpr)
+        else:
+            raise Exception("macro_china_lpr 返回空数据")
     except Exception as e:
         print(f"--- !!! [市场指标任务] 获取 1 年期 LPR 失败: {e} !!! ---")
         return "N/A"
@@ -51,9 +54,28 @@ async def _get_sh_index():
                 "price": float(latest['close']),
                 "change_pct": float(change_pct)
             }
+        else:
+            raise Exception("stock_zh_index_daily 返回空数据")
     except Exception as e:
         print(f"--- !!! [市场指标任务] 获取上证指数失败: {e} !!! ---")
         return {"price": "N/A", "change_pct": 0}
+    
+async def _get_repo_rate_7d():
+    """
+    获取中国 7 天回购定盘利率
+    """
+    try:
+        start_date = (datetime.datetime.now() - datetime.timedelta(days=7)).strftime('%Y%m%d')
+        end_date = datetime.datetime.now().strftime('%Y%m%d')
+        df = await asyncio.to_thread(ak.repo_rate_hist, start_date=start_date, end_date=end_date)
+        if df is not None:
+            latest_rate = df.iloc[-1]['FR007']
+            return float(latest_rate)
+        else:
+            raise Exception("repo_rate_hist 返回空数据")
+    except Exception as e:
+        print(f"--- !!! [市场指标任务] 获取 7 天回购利率失败: {e} !!! ---")
+        return "N/A"
     
 async def fetch_and_cache_market_indicators():
     print("--- [市场指标任务] 正在加载市场指标数据... ---")
@@ -61,12 +83,14 @@ async def fetch_and_cache_market_indicators():
         _get_usd_cny(),
         _get_lpr_1y(),
         _get_sh_index(),
+        _get_repo_rate_7d()
     )
 
     results = {
         "usd_cny": results_list[0],
         "lpr_1y": results_list[1],
         "sh_index": results_list[2],
+        "repo_rate_7d": results_list[3]
     }
     cached_data['market_indicators'] = results
     print(f"--- [市场指标任务] 市场指标数据已缓存: {results} ---")

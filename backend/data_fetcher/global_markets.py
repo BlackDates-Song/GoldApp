@@ -18,6 +18,8 @@ async def _get_xau_usd():
                 "price": float(xau_usd_data['最新价']),
                 "change_pct": float(xau_usd_data['涨跌幅']) 
             }
+        else:
+            raise Exception("futures_foreign_commodity_realtime 返回空数据")
     except Exception as e:
         print(f"--- !!! [国际市场任务] 获取 XAU/USD (GC00Y) 失败: {e} !!! ---")
         return {"price": "N/A", "change_pct": 0}
@@ -61,6 +63,8 @@ async def _get_us_10y():
                 "price": price_latest,
                 "change_pct": change_pct
             }
+        else:
+            raise Exception("bond_zh_us_rate 返回空数据")
     except Exception as e:
         print(f"--- !!! [国际市场任务] 获取 US 10Y 失败: {e} !!! ---")
         return {"price": "N/A", "change_pct": 0}

@@ -16,7 +16,7 @@ async def fetch_and_cache_k_lines():
         # 1. 下载数据 (使用 to_thread 避免阻塞)
         data_daily = await asyncio.to_thread(ak.spot_hist_sge, symbol="Au99.99")
         if data_daily is None:
-            print("--- !!! [K线任务] AkShare 未能下载 SGE 'Au99.99' 历史K线。 ---"); return
+            raise Exception("--- !!! [K线任务] AkShare 未能下载 SGE 'Au99.99' 历史K线。 ---"); return
 
         print("--- [K线任务] SGE Au99.99 历史K线下载成功！ ---")
         

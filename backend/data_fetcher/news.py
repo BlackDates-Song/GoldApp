@@ -8,10 +8,7 @@ async def fetch_and_cache_news():
     try:
         news_df_raw = await asyncio.to_thread(ak.futures_news_shmet, symbol="贵金属") 
         if news_df_raw is None:
-            print("--- !!! [新闻任务] AkShare 未能下载上海金属网(SHMET) 贵金属快讯。 ---")
-            if 'news' not in cached_data:
-                cached_data['news'] = []
-            return
+            raise Exception("--- !!! [新闻任务] AkShare 未能下载上海金属网(SHMET) 贵金属快讯。 ---")
         
         content_col = '内容' 
         contains_gold = news_df_raw[content_col].str.contains("黄金", na=False)

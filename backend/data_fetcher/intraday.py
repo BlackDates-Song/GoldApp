@@ -25,8 +25,7 @@ async def update_intraday_cache():
         try:
             data_df = await asyncio.to_thread(ak.spot_quotations_sge, symbol="Au99.99")
             if data_df is None: 
-                print("--- !!! [分时图任务] AkShare 未能下载 SGE 'Au99.99' 分时数据。 ---")
-                return
+                raise Exception("--- !!! [分时图任务] AkShare 未能下载 SGE 'Au99.99' 分时数据。 ---")
 
             processed = []
             time_col = '时间' if '时间' in data_df.columns else 'TIME'

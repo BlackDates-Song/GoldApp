@@ -14,10 +14,10 @@ def _get_gold_etf_holdings():
         if df is not None:
             return float(df.iloc[-1]['总库存'])
         else:
-            return "N/A"
+            raise Exception("macro_cons_gold 返回空数据")
     except Exception as e:
         print(f"--- !!! [数据处理] 黄金ETF (SPDR) 失败: {e} !!! ---")
-    return "N/A"
+        return "N/A"
 
 # --- 主函数 (异步) ---
 async def fetch_and_cache_spdr_gold():
