@@ -6,6 +6,7 @@ import {
     fetchGlobalMarkets, 
     fetchDomesticMacro, 
     fetchMarketIndicators,
+    fetchSpdrGold,
     getRealtimeQuote,
     getAIPrediction
 } from './api.js';
@@ -17,6 +18,7 @@ import {
     renderGlobalMarkets,
     renderDomesticMacro,
     renderMarketIndicators,
+    renderSPDRGold,
     renderLoading,
     renderError
 } from './ui.js';
@@ -93,6 +95,16 @@ document.addEventListener("DOMContentLoaded", function() {
         }
     }
 
+    async function loadSPDRGold() {
+        try {
+            const data = await fetchSpdrGold();
+            // 仅更新 SPDR 黄金的 <span> 占位符
+            renderSPDRGold(data); 
+        } catch (e) {
+            renderSPDRGold("N/A"); // 捕获 503 等错误
+        }
+    }
+
     // 5. 绑定按钮事件
     const controlButtons = document.querySelectorAll('.k-line-button');
     controlButtons.forEach(button => {
@@ -118,6 +130,7 @@ document.addEventListener("DOMContentLoaded", function() {
     loadGlobal();
     loadDomestic();
     loadIndicators();
+    loadSPDRGold();
 
     // 7. 设置定时器
     setInterval(loadQuote, 10000); 
@@ -133,6 +146,7 @@ document.addEventListener("DOMContentLoaded", function() {
     setInterval(loadGlobal, 15 * 60 * 1000); 
     setInterval(loadIndicators, 4 * 60 * 60 * 1000); // 4 小时
     setInterval(loadDomestic, 24 * 60 * 60 * 1000); // 24 小时
+    setInterval(loadSPDRGold, 12 * 60 * 60 * 1000); // 12 小时
     
     // 8. 窗口大小调整
     window.addEventListener('resize', () => myChart.resize());

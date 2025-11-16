@@ -15,7 +15,7 @@ async def lifespan(app):
             asyncio.create_task(data_fetcher.update_intraday_cache()),
             asyncio.create_task(data_fetcher.fetch_and_cache_global_markets()),
             asyncio.create_task(data_fetcher.fetch_and_cache_domestic_macro()),
-            asyncio.create_task(data_fetcher.fetch_and_cache_market_indicators())
+            asyncio.create_task(data_fetcher.fetch_and_cache_market_indicators()),
         ]
 
         # 2. *并行* 运行所有初始任务
@@ -30,8 +30,14 @@ async def lifespan(app):
         asyncio.create_task(data_fetcher.update_global_markets_periodically())
         asyncio.create_task(data_fetcher.update_domestic_macro_periodically())
         asyncio.create_task(data_fetcher.update_market_indicators_periodically())
+        asyncio.create_task(data_fetcher.update_spdr_gold_periodically())
         
         print("--- [启动] 所有后台定时刷新任务已启动 ---")
+
+        print("--- [启动] 正在启动慢速接口 ---")
+        asyncio.create_task(data_fetcher.fetch_and_cache_spdr_gold())
+        asyncio.create_task(data_fetcher.update_spdr_gold_periodically())
+        print("--- [启动] 慢速接口任务已启动 ---")
     
     except Exception as e:
         # [v4.69] 关键: 捕获并打印启动期间的任何错误

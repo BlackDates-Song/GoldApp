@@ -25,6 +25,7 @@ export const fetchNewsData = () => fetchData(`/api/gold-news`);
 export const fetchGlobalMarkets = () => fetchData(`/api/global-markets`);
 export const fetchDomesticMacro = () => fetchData(`/api/domestic-macro`);
 export const fetchMarketIndicators = () => fetchData(`/api/market-indicators`);
+export const fetchSpdrGold = () => fetchData(`/api/spdr-gold`);
 
 // --- 专用的fetchData函数 ---
 

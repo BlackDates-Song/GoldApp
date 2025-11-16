@@ -14,3 +14,5 @@ from .global_markets import fetch_and_cache_global_markets, update_global_market
 from .domestic_macro import fetch_and_cache_domestic_macro, update_domestic_macro_periodically
 
 from .market_indicators import fetch_and_cache_market_indicators, update_market_indicators_periodically
+
+from .spdr_gold import fetch_and_cache_spdr_gold, update_spdr_gold_periodically

@@ -55,33 +55,18 @@ async def _get_sh_index():
         print(f"--- !!! [市场指标任务] 获取上证指数失败: {e} !!! ---")
         return {"price": "N/A", "change_pct": 0}
     
-async def _get_gold_etf_holdings():
-    """
-    获取黄金 ETF 持仓量
-    """
-    try:
-        df = await asyncio.to_thread(ak.macro_cons_gold)
-        if df is not None:
-            latest = df.iloc[-1]['总库存']
-            return float(latest)
-    except Exception as e:
-        print(f"--- !!! [市场指标任务] 获取黄金 ETF 持仓量失败: {e} !!! ---")
-        return "N/A"
-    
 async def fetch_and_cache_market_indicators():
     print("--- [市场指标任务] 正在加载市场指标数据... ---")
     results_list = await asyncio.gather(
         _get_usd_cny(),
         _get_lpr_1y(),
         _get_sh_index(),
-        # _get_gold_etf_holdings()
     )
 
     results = {
         "usd_cny": results_list[0],
         "lpr_1y": results_list[1],
         "sh_index": results_list[2],
-        # "gold_etf_holdings": results_list[3]
     }
     cached_data['market_indicators'] = results
     print(f"--- [市场指标任务] 市场指标数据已缓存: {results} ---")

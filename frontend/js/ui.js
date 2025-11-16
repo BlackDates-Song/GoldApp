@@ -164,9 +164,28 @@ export function renderMarketIndicators(element, data) {
     html += renderMarketIndicatorItem('USD/CNY 汇率', data.usd_cny, '', 4); 
     html += renderMarketIndicatorItem('LPR (1年)', data.lpr_1y, '%');
     html += renderMarketIndicatorItem('上证指数', data.sh_index, '点');
-    // [v4.77] 更新名称以反映 SPDR
-    html += renderMarketIndicatorItem('SPDR黄金ETF持仓', data.gold_etf_holdings, '吨');
+    // [v4.98] 为慢速数据添加一个带 ID 的占位符
+    html += `
+        <div class="market-item">
+            <span class="name">SPDR黄金ETF持仓</span>
+            <span class="value" id="spdr-gold-value" style="color: #999;">
+                正在加载...
+            </span>
+        </div>`;
     element.innerHTML = html;
+}
+// [v4.98] 新增: 用于更新 SPDR 黄金的专用函数
+export function renderSPDRGold(data) {
+    const element = document.getElementById('spdr-gold-value');
+    if (!element) return; // 如果元素不存在，则退出
+
+    if (typeof data === 'number') {
+        element.textContent = `${data.toFixed(2)} 吨`;
+        element.style.color = '#333'; // 恢复默认颜色
+    } else {
+        element.textContent = 'N/A';
+        element.style.color = '#ff4d4f'; // 加载失败显示红色
+    }
 }
 
 // --- 7. 错误/加载状态 ---

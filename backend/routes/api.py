@@ -98,3 +98,10 @@ async def get_market_indicators():
     if "market_indicators" not in cached_data or not cached_data.get("market_indicators"):
         raise HTTPException(status_code=503, detail="市场指标数据正在加载中。")
     return {"success": True, "data": cached_data['market_indicators']}
+
+#  --- [v4.98] 为慢速数据创建新 API ---
+@router.get("/api/spdr-gold")
+async def get_spdr_gold():
+    if "spdr_gold" not in cached_data or not cached_data.get("spdr_gold"):
+        raise HTTPException(status_code=503, detail="SPDR黄金数据正在加载中。")
+    return {"success": True, "data": cached_data['spdr_gold']}

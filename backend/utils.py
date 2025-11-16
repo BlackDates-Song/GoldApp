@@ -5,6 +5,7 @@ import datetime
 import asyncio
 import traceback
 import functools
+import time
 
 from typing import Dict, Any
 
@@ -50,3 +51,34 @@ def get_sge_trade_date_and_hour():
     else:
         trade_date = now.strftime('%Y-%m-%d')
     return trade_date, hour, now
+
+def akshare_retry_wrapper(ak_function, *args, **kwargs):
+    """
+    (v4.81)
+    通用的 AkShare *同步* 重试辅助函数。
+    - 它是一个阻塞函数，应该在 asyncio.to_thread 中运行。
+    """
+    max_retries = 3
+    retry_delay_seconds = 5
+    
+    func_name = ak_function.__name__
+    
+    for attempt in range(max_retries):
+        try:
+            result = ak_function(*args, **kwargs)
+            
+            if result is None or (hasattr(result, 'empty') and result.empty):
+                raise Exception(f"{func_name} 返回了空数据 (None or empty DataFrame)")
+            
+            print(f"   [Akshare Wrapper] {func_name} 获取成功。")
+            return result
+        
+        except Exception as e:
+            print(f"--- !!! [Akshare Wrapper] {func_name} 失败 (尝试 {attempt + 1}/{max_retries}) !!! ---")
+            print(f"--- 错误: {e} ---")
+            if attempt < max_retries - 1:
+                print(f"--- 将在 {retry_delay_seconds} 秒后重试... ---")
+                time.sleep(retry_delay_seconds) 
+            else:
+                print(f"--- !!! [Akshare Wrapper] 达到最大重试次数，{func_name} 失败 !!! ---")
+                return None
