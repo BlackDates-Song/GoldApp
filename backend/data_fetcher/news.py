@@ -12,9 +12,9 @@ async def fetch_and_cache_news():
         
         content_col = '内容' 
         contains_gold = news_df_raw[content_col].str.contains("黄金", na=False)
-        contains_silver = news_df_raw[content_col].str.contains("白银", na=False)
-        contains_platinum = news_df_raw[content_col].str.contains("铂金", na=False)
-        contains_palladium = news_df_raw[content_col].str.contains("钯金", na=False)
+        contains_silver = news_df_raw[content_col].str.contains(r"(白银|银)", na=False)
+        contains_platinum = news_df_raw[content_col].str.contains(r"(铂金|铂)", na=False)
+        contains_palladium = news_df_raw[content_col].str.contains(r"(钯金|钯)", na=False)
         is_other_metal_only = (contains_silver | contains_platinum | contains_palladium) & ~contains_gold
         news_df = news_df_raw[~is_other_metal_only]
         news_df = news_df[['发布时间', '内容']].tail(50)
