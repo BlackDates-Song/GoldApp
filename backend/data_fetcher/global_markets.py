@@ -27,7 +27,7 @@ async def _get_dxy():
     获取 DXY 美元指数
     """
     try:
-        hist = yf.download("DX-Y.NYB", period="2d", interval="1d")
+        hist = yf.download("DX-Y.NYB", period="3d", interval="1d")
         if hist.empty or len(hist) < 2:
             raise Exception("yfinance 未能返回 DXY 的 2 天历史数据")
         latest = hist.iloc[-1]
