@@ -100,9 +100,25 @@ document.addEventListener("DOMContentLoaded", function() {
             const data = await fetchSpdrGold();
             // 仅更新 SPDR 黄金的 <span> 占位符
             renderSPDRGold(data); 
+            return true;
         } catch (e) {
-            renderSPDRGold("N/A"); // 捕获 503 等错误
+            console.warn("SPDR Gold data not ready.") // 捕获 503 等错误
+            return false;
         }
+    }
+
+    // 轮询加载 SPDR 黄金数据的函数
+    async function pollForSPDRGold(retries = 30, delay = 30000) {
+        for (let i = 0; i < retries; i++) {
+            const success = await loadSPDRGold();
+            if (success) {
+                console.log("SPDR Gold data loaded successfully.");
+                return;
+            }
+            await new Promise(res => setTimeout(res, delay));
+        }
+        console.error("Failed to load SPDR Gold data after multiple attempts.");
+        renderSPDRGold("N/A"); // 显示加载失败
     }
 
     // 5. 绑定按钮事件
@@ -130,7 +146,7 @@ document.addEventListener("DOMContentLoaded", function() {
     loadGlobal();
     loadDomestic();
     loadIndicators();
-    loadSPDRGold();
+    pollForSPDRGold();
 
     // 7. 设置定时器
     setInterval(loadQuote, 10000); 
