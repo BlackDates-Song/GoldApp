@@ -1,6 +1,7 @@
 import asyncio
 import pandas as pd
 import akshare as ak
+import yfinance as yf
 import datetime
 
 from cache import cached_data
@@ -26,13 +27,16 @@ async def _get_dxy():
     获取 DXY 美元指数
     """
     try:
-        df = await asyncio.to_thread(ak.index_global_spot_em)
-        if df is not None:
-            dxy_data = df[df['代码'] == 'UDI'].iloc[0]
-            return {
-                "price": float(dxy_data['最新价']),
-                "change_pct": float(dxy_data['振幅'])
-            }
+        hist = yf.download("DX-Y.NYB", period="2d", interval="1d")
+        if hist.empty or len(hist) < 2:
+            raise Exception("yfinance 未能返回 DXY 的 2 天历史数据")
+        latest = hist.iloc[-1]
+        previous = hist.iloc[-2]
+        change_pct = ((latest['Close'] - previous['Close']) / previous['Close']) * 100
+        return {
+            "price": float(latest['Close']),
+            "change_pct": float(change_pct)
+        }
     except Exception as e:
         print(f"--- !!! [国际市场任务] 获取 DXY (UDI) 失败: {e} !!! ---")
         return {"price": "N/A", "change_pct": 0}

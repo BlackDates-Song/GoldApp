@@ -1,6 +1,7 @@
 import asyncio
 import pandas as pd
 import akshare as ak
+import yfinance as yf
 
 from cache import cached_data
 
@@ -9,13 +10,16 @@ async def _get_usd_cny():
     获取 USD/CNY 汇率
     """
     try:
-        df = await asyncio.to_thread(ak.forex_spot_em)
-        if df is not None:
-            usd_cny_data = df[df['代码'] == 'USDCNH'].iloc[0]
-            return {
-                "price": float(usd_cny_data['最新价']),
-                "change_pct": float(usd_cny_data['涨跌幅'])
-            }
+        hist = yf.download("USDCNY=X", period="2d", interval="1d")
+        if hist.empty or len(hist) < 2:
+            raise Exception("yfinance 未能返回 USD/CNY 的 2 天历史数据")
+        latest = hist.iloc[-1]
+        previous = hist.iloc[-2]
+        change_pct = ((latest['Close'] - previous['Close']) / previous['Close']) * 100
+        return {
+            "price": float(latest['Close']),
+            "change_pct": float(change_pct)
+        }
     except Exception as e:
         print(f"--- !!! [市场指标任务] 获取 USD/CNY 汇率失败: {e} !!! ---")
         return {"price": "N/A", "change_pct": 0}
