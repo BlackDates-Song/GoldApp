@@ -4,3 +4,4 @@ fastapi
 numpy
 pandas
 pytz
+yfinance
