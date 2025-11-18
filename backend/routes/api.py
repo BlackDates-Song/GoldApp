@@ -105,3 +105,15 @@ async def get_spdr_gold():
     if "spdr_gold" not in cached_data or not cached_data.get("spdr_gold"):
         raise HTTPException(status_code=503, detail="SPDR黄金数据正在加载中。")
     return {"success": True, "data": cached_data['spdr_gold']}
+
+@router.get("/api/ai-features")
+async def get_ai_features():
+    """
+    一个调试端点，用于查看为 AI 模型计算的原始特征数据。
+    """
+    if "ai_features" not in cached_data or not cached_data['ai_features']:
+        raise HTTPException(status_code=503, detail="AI 特征数据正在计算中...")
+    
+    # [v4.107] 注意: 我们的 kline.py 已经将它存为 JSON 字符串了，
+    # 我们在这里直接返回那个 JSON 字符串
+    return {"success": True, "data_as_json_string": cached_data['ai_features']}

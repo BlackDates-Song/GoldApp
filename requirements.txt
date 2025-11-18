@@ -5,3 +5,5 @@ numpy
 pandas
 pytz
 yfinance
+pandas-ta
+chinese-calendar
