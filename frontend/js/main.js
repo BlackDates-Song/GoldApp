@@ -63,15 +63,25 @@ document.addEventListener("DOMContentLoaded", async function() {
         try {
             const data = await fetchNewsData();
             renderNewsData(newsContent, data);
-            return true;
+
+            // [关键逻辑]
+            // 1. 如果 data.sentiment_index 是 null，说明后端只完成了阶段1 (只有新闻)
+            //    我们返回 false，让 pollForNews 继续轮询，等待阶段2 (分析) 完成。
+            // 2. 如果 data.sentiment_index 有值，说明阶段2完成，返回 true 停止轮询。
+            
+            if (data && data.sentiment_index === null) {
+                // console.log(">>> [News] 只有新闻，等待 NLP...");
+                return false; // 继续轮询
+            }
+            return true; // 这里的 true 意味着“彻底完成”，停止轮询
         } catch (e) {
-            console.warn("News data or NLP not ready.") // 捕获 503 等错误
-            return false;
+            // 503 错误等
+            return false; // 继续轮询
         }
     }
 
     // 轮询加载新闻数据的函数
-    async function pollForNews(retries = 30, delay = 2000) {
+    async function pollForNews(retries = 60, delay = 1000) {
         // 尝试 30次 * 2秒 = 60秒 (足够 NLP 跑完了)
         // 先渲染一个“正在分析”的状态
         renderLoading(newsContent, "正在进行 AI 舆情分析...");

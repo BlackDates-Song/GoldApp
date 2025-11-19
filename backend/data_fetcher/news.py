@@ -18,42 +18,62 @@ def _fetch_news_data_sync():
     contains_platinum = news_df_raw[content_col].str.contains(r"(铂金|铂)", na=False)
     contains_palladium = news_df_raw[content_col].str.contains(r"(钯金|钯)", na=False)
     is_other_metal_only = (contains_silver | contains_platinum | contains_palladium) & ~contains_gold
-    news_df = news_df_raw[~is_other_metal_only].tail(50).copy()
+    news_df = news_df_raw[~is_other_metal_only].tail(20).copy()
+    
+    if '发布时间' in news_df.columns: news_df.rename(columns={'发布时间': 'report_time'}, inplace=True)
+    if '内容' in news_df.columns: news_df.rename(columns={'内容': 'report_content'}, inplace=True)
+    
+    return news_df.to_dict('records')
 
+def _analyze_sentiment_sync(news_items):
     print(f"--- [新闻任务] 正在进行 NLP 情感分析 ---")
+    total_score = 0
+    count = 0
 
-    def calculate_sentiment(text):
+    for item in news_items:
+        s = 0.5
         try:
-            return SnowNLP(text).sentiments
+            if item.get('report_content'):
+                s = SnowNLP(item['report_content']).sentiments
         except:
-            return 0.5
-        
-    news_df['sentiment'] = news_df[content_col].apply(calculate_sentiment)
-    avg_raw_score = news_df['sentiment'].mean()
-    market_sentiment_index = (avg_raw_score - 0.5) * 2
-    print(f"--- [新闻任务] NLP 分析完成。平均情绪: {avg_raw_score:.2f} -> 指数: {market_sentiment_index:.2f} ---")
+            pass
+        total_score += s
+        count += 1
+        item['sentiment'] = s
 
-    news_df.rename(columns={'发布时间': 'report_time', '内容': 'report_content'}, inplace=True)
-
-    return {
-        "items": news_df[['report_time', 'report_content', 'sentiment']].to_dict('records'),
-        "sentiment_index": float(market_sentiment_index)
-    }
+    if count == 0:
+        return 0
+    
+    avg_raw_score = total_score / count
+    return (avg_raw_score - 0.5) * 2
 
 async def fetch_and_cache_news():
     try:
-        result = await asyncio.to_thread(_fetch_news_data_sync)
-        if result is not None:
-            cached_data['news'] = result
-            print(f"--- [新闻任务] 贵金属快讯过滤后，已缓存 {len(cached_data['news']['items'])} 条 ---")
-        else:
-            if 'news' not in cached_data:
-                cached_data['news'] = {"items": [], "sentiment_index": 0}
+        news_items = await asyncio.to_thread(_fetch_news_data_sync)
+        if news_items:
+            # [关键] 第一次更新缓存：有新闻，但情绪是 None
+            # 前端看到这个，就会显示新闻列表 + "正在分析..."
+            cached_data['news'] = {
+                "items": news_items, 
+                "sentiment_index": None 
+            }
+            print(f"--- [新闻任务] 阶段1完成: 已缓存 {len(news_items)} 条新闻 (等待分析) ---")
+            
+            # 2. 执行 NLP 分析
+            sentiment_index = await asyncio.to_thread(_analyze_sentiment_sync, news_items)
+            
+            # [关键] 第二次更新缓存：补全情绪分数
+            cached_data['news'] = {
+                "items": news_items,
+                "sentiment_index": sentiment_index
+            }
+            print(f"--- [新闻任务] 阶段2完成: 情绪指数 {sentiment_index:.2f} ---")
 
     except Exception as e:
-        print(f"--- !!! [新闻任务] 快讯加载失败 !!! ---\n错误: {e}")
+        print(f"--- !!! [新闻任务] 失败 !!! ---\n错误: {e}")
+        # 保持缓存现状，或者设为空
         if 'news' not in cached_data:
-            cached_data['news'] = {"items": [], "sentiment_index": 0}
+             cached_data['news'] = {"items": [], "sentiment_index": 0}
 
 async def update_news_cache_periodically():
     while True:
