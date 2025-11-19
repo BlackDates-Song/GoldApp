@@ -29,7 +29,7 @@ import {
 } from './chart.js';
 
 // 2. DOMContentLoaded 事件, 确保页面已加载
-document.addEventListener("DOMContentLoaded", function() {
+document.addEventListener("DOMContentLoaded", async function() {
     
     // 3. 初始化图表和获取 DOM 元素
     const chartContainer = document.getElementById('chart-container');
@@ -63,9 +63,28 @@ document.addEventListener("DOMContentLoaded", function() {
         try {
             const data = await fetchNewsData();
             renderNewsData(newsContent, data);
+            return true;
         } catch (e) {
-            renderError(newsContent, '新闻加载失败');
+            console.warn("News data or NLP not ready.") // 捕获 503 等错误
+            return false;
         }
+    }
+
+    // 轮询加载新闻数据的函数
+    async function pollForNews(retries = 30, delay = 2000) {
+        // 尝试 30次 * 2秒 = 60秒 (足够 NLP 跑完了)
+        // 先渲染一个“正在分析”的状态
+        renderLoading(newsContent, "正在进行 AI 舆情分析...");
+        
+        for (let i = 0; i < retries; i++) {
+            const success = await loadNews();
+            if (success) {
+                console.log("News data loaded successfully.");
+                return; // 加载成功，退出
+            }
+            await new Promise(r => setTimeout(r, delay));
+        }
+        renderError(newsContent, "新闻加载超时");
     }
 
     async function loadGlobal() {
@@ -108,7 +127,7 @@ document.addEventListener("DOMContentLoaded", function() {
     }
 
     // 轮询加载 SPDR 黄金数据的函数
-    async function pollForSPDRGold(retries = 30, delay = 30000) {
+    async function pollForSPDRGold(retries = 30, delay = 6000) {
         for (let i = 0; i < retries; i++) {
             const success = await loadSPDRGold();
             if (success) {
@@ -141,11 +160,13 @@ document.addEventListener("DOMContentLoaded", function() {
     // 6. 初始加载
     loadIntradayData(myChart, true); 
     loadQuote();
-    loadNews();
     loadAI();
     loadGlobal();
     loadDomestic();
     loadIndicators();
+    console.log("Starting to poll for news data...");
+    await pollForNews();
+    console.log("Starting to poll for SPDR Gold data...");
     pollForSPDRGold();
 
     // 7. 设置定时器

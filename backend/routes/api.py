@@ -63,8 +63,8 @@ async def get_ai_prediction():
 # --- (v4.28) 新闻 API (不变) ---
 @router.get("/api/gold-news")
 async def get_gold_news():
-    if "news" not in cached_data:
-        raise HTTPException(status_code=500, detail="新闻数据尚未加载。")
+    if "news" not in cached_data or not cached_data['news']:
+        raise HTTPException(status_code=503, detail="新闻数据尚未加载完成。")
     return {"success": True, "data": cached_data['news']}
 
 # --- (v4.31 新增) 宏观数据 API ---
