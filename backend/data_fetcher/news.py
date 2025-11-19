@@ -1,6 +1,7 @@
 import asyncio
 import akshare as ak
 import pandas as pd
+import gc
 
 
 from cache import cached_data
@@ -18,11 +19,14 @@ def _fetch_news_data_sync():
     contains_platinum = news_df_raw[content_col].str.contains(r"(铂金|铂)", na=False)
     contains_palladium = news_df_raw[content_col].str.contains(r"(钯金|钯)", na=False)
     is_other_metal_only = (contains_silver | contains_platinum | contains_palladium) & ~contains_gold
-    news_df = news_df_raw[~is_other_metal_only].tail(20).copy()
+    news_df = news_df_raw[~is_other_metal_only].tail(12).copy()
+
+    del news_df_raw
+    gc.collect()
     
     if '发布时间' in news_df.columns: news_df.rename(columns={'发布时间': 'report_time'}, inplace=True)
     if '内容' in news_df.columns: news_df.rename(columns={'内容': 'report_content'}, inplace=True)
-    
+
     return news_df.to_dict('records')
 
 def _analyze_sentiment_sync(news_items):
@@ -34,13 +38,18 @@ def _analyze_sentiment_sync(news_items):
     for item in news_items:
         s = 0.5
         try:
-            if item.get('report_content'):
-                s = SnowNLP(item['report_content']).sentiments
+            content = item.get('report_content')
+            if content:
+                short_content = content[:100]  # 取前100个字符进行情感分析
+                s = SnowNLP(short_content).sentiments
         except:
             pass
         total_score += s
         count += 1
         item['sentiment'] = s
+        del s
+
+    gc.collect()
 
     if count == 0:
         return 0
