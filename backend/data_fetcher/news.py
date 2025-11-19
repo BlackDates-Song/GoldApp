@@ -2,6 +2,7 @@ import asyncio
 import akshare as ak
 import pandas as pd
 import gc
+from utils import log_memory
 
 
 from cache import cached_data
@@ -9,10 +10,13 @@ from cache import cached_data
 def _fetch_news_data_sync():
     print("--- [新闻任务] 正在加载上海金属网(SHMET)快讯... ---")
 
+    log_memory("新闻数据获取开始")
     news_df_raw = ak.futures_news_shmet(symbol="贵金属") 
+    log_memory("新闻数据获取接口访问结束")
     if news_df_raw is None:
         return None
     
+    log_memory("新闻数据处理开始")
     content_col = '内容' 
     contains_gold = news_df_raw[content_col].str.contains("黄金", na=False)
     contains_silver = news_df_raw[content_col].str.contains(r"(白银|银)", na=False)
@@ -20,6 +24,7 @@ def _fetch_news_data_sync():
     contains_palladium = news_df_raw[content_col].str.contains(r"(钯金|钯)", na=False)
     is_other_metal_only = (contains_silver | contains_platinum | contains_palladium) & ~contains_gold
     news_df = news_df_raw[~is_other_metal_only].tail(12).copy()
+    log_memory("新闻数据处理结束")
 
     del news_df_raw
     gc.collect()
@@ -31,10 +36,11 @@ def _fetch_news_data_sync():
 
 def _analyze_sentiment_sync(news_items):
     print(f"--- [新闻任务] 正在进行 NLP 情感分析 ---")
+    log_memory("新闻情感分析开始")
     from snownlp import SnowNLP
     total_score = 0
     count = 0
-
+    log_memory("新闻情感分析循环开始")
     for item in news_items:
         s = 0.5
         try:
@@ -49,6 +55,7 @@ def _analyze_sentiment_sync(news_items):
         item['sentiment'] = s
         del s
 
+    log_memory("新闻情感分析循环结束")
     gc.collect()
 
     if count == 0:
