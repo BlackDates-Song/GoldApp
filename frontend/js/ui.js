@@ -41,22 +41,55 @@ function formatNewsTime(isoString) {
 }
 
 export function renderNewsData(element, data) {
-    if (!data || data.length === 0) {
+    // [v4.109] 适配新的数据结构: data 现在是一个包含 {items: [], sentiment_index: ...} 的对象
+    // 如果 data 为空，或者 data.items 不存在
+    if (!data || !data.items || data.items.length === 0) {
         element.innerHTML = '<div class="placeholder">暂无新闻。</div>';
         return;
     }
-    data.reverse(); 
-    let html = '';
-    data.forEach(item => {
+
+    const newsList = data.items;
+    const sentiment = data.sentiment_index; // -1 到 +1
+    
+    // 1. 构建情绪仪表盘 HTML
+    let sentimentColor = '#888';
+    let sentimentText = '中性';
+    
+    if (sentiment > 0.2) { sentimentColor = '#ff4d4f'; sentimentText = '看涨 (利好)'; }
+    else if (sentiment < -0.2) { sentimentColor = '#52c41a'; sentimentText = '看跌 (利空)'; }
+    
+    // 将 -1~1 映射到 0%~100% 的进度条位置 (0 = 50%)
+    const barPercent = ((sentiment + 1) / 2) * 100;
+
+    const sentimentHtml = `
+        <div style="position: sticky; top: 0; z-index: 10; padding: 10px; background-color: #f9f9f9; border-bottom: 1px solid #eee; margin-bottom: 10px; border-radius: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 5px; font-size: 0.9rem;">
+                <span style="font-weight: bold;">AI 舆情分析</span>
+                <span style="color: ${sentimentColor}; font-weight: bold;">${sentimentText} (${sentiment.toFixed(2)})</span>
+            </div>
+            <div style="height: 6px; background-color: #e8e8e8; border-radius: 3px; position: relative; overflow: hidden;">
+                <div style="position: absolute; left: 50%; top: 0; bottom: 0; width: 2px; background-color: #333; z-index: 1;"></div>
+                <div style="height: 100%; width: ${barPercent}%; background: linear-gradient(90deg, #52c41a 0%, #ff4d4f 100%); transition: width 0.5s;"></div>
+            </div>
+        </div>
+    `;
+
+    // 2. 构建新闻列表 HTML
+    // 我们这里先 slice(0, 20) 只显示最新的 20 条，防止页面太长
+    const reversedList = [...newsList].reverse().slice(0, 20); 
+    
+    let listHtml = '';
+    reversedList.forEach(item => {
         const formattedTime = formatNewsTime(item.report_time);
         let title = ''; let content = item.report_content;
         if (content.startsWith('【') && content.includes('】')) {
             const splitIndex = content.indexOf('】') + 1;
             title = content.substring(0, splitIndex); content = content.substring(splitIndex);
         }
-        html += `<div class="news-item"><div class="news-time">${formattedTime}</div><div class="news-title">${title}</div><div class="news-content">${content}</div></div>`;
+        listHtml += `<div class="news-item"><div class="news-time">${formattedTime}</div><div class="news-title">${title}</div><div class="news-content">${content}</div></div>`;
     });
-    element.innerHTML = html;
+
+    element.innerHTML = sentimentHtml + listHtml;
 }
 
 // --- 4. 全球市场 ---
