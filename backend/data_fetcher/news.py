@@ -1,7 +1,7 @@
 import asyncio
 import akshare as ak
 import pandas as pd
-from snownlp import SnowNLP
+
 
 from cache import cached_data
 
@@ -27,6 +27,7 @@ def _fetch_news_data_sync():
 
 def _analyze_sentiment_sync(news_items):
     print(f"--- [新闻任务] 正在进行 NLP 情感分析 ---")
+    from snownlp import SnowNLP
     total_score = 0
     count = 0
 

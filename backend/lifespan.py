@@ -4,11 +4,15 @@ import data_fetcher # 这是一个包
 import traceback # [v4.69] 导入 traceback
 import gc
 
+from utils import log_memory
+
 @asynccontextmanager
 async def lifespan(app):
     print("--- 服务器启动... ---")
+    log_memory("启动开始")
     
     try:
+        log_memory("核心任务开始")
         # 1. 定义所有 *初始* 加载任务
         core_tasks = [
             asyncio.create_task(data_fetcher.fetch_and_cache_k_lines()),
@@ -24,6 +28,7 @@ async def lifespan(app):
         
         print("--- [启动] 核心任务加载完毕! ---")
         gc.collect()  # [v4.69] 强制进行垃圾回收，释放内存
+        log_memory("核心任务结束")
 
     except Exception as e:
         # [v4.69] 关键: 捕获并打印启动期间的任何错误
@@ -43,15 +48,18 @@ async def lifespan(app):
     print("--- [启动] 所有后台定时刷新任务已启动 ---")
 
     print("--- [启动] 正在启动新闻NLP任务 ---")
+    log_memory("新闻任务开始")
     asyncio.create_task(data_fetcher.fetch_and_cache_news())
     asyncio.create_task(data_fetcher.update_news_cache_periodically())
     print("--- [启动] 新闻NLP任务已启动 ---")
+    log_memory("新闻任务结束")
 
     print("--- [启动] 正在启动慢速SPDR任务 ---")
+    log_memory("慢速SPDR任务开始")
     asyncio.create_task(data_fetcher.fetch_and_cache_spdr_gold())
     asyncio.create_task(data_fetcher.update_spdr_gold_periodically())
     print("--- [启动] 慢速SPDR任务已启动 ---")
-    
+    log_memory("慢速SPDR任务结束")
     
     print("--- 全部任务启动完毕，服务器上线---")     
     yield

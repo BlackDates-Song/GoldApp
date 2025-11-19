@@ -6,6 +6,8 @@ import asyncio
 import traceback
 import functools
 import time
+import os
+import psutil
 
 from typing import Dict, Any
 
@@ -82,3 +84,8 @@ def akshare_retry_wrapper(ak_function, *args, **kwargs):
             else:
                 print(f"--- !!! [Akshare Wrapper] 达到最大重试次数，{func_name} 失败 !!! ---")
                 return None
+            
+def log_memory(tag=""):
+    process = psutil.Process(os.getpid())
+    mb = process.memory_info().rss / 1024 / 1024
+    print(f"--- [MEMORY] {tag} 当前占用: {mb:.2f} MB ---")
