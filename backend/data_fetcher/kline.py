@@ -1,6 +1,7 @@
 import asyncio
 import pandas as pd
 import akshare as ak
+import yfinance as yf
 import traceback
 import pandas_ta as ta
 import chinese_calendar
@@ -29,6 +30,27 @@ def _fetch_kline_data_sync():
         cols_to_numeric = ['open', 'close', 'high', 'low']
         data_daily[cols_to_numeric] = data_daily[cols_to_numeric].apply(pd.to_numeric, errors='coerce')
         data_daily.dropna(subset=cols_to_numeric, inplace=True, how='any')
+
+        print("--- [K线任务] 正在获取 XAU/USD 和  USD/CNY 用于特征对齐---")
+        try:
+            start_date = data_daily.index[0].strftime('%Y-%m-%d')
+            tickers = ["GC=F", "USDCNY=X"]
+            external_data = yf.download(tickers, start=start_date, interval="1d", progress=False)['Close']
+            external_data.index = external_data.index.tz_localize(None)
+
+            data_daily = data_daily.join(external_data["GC=F"].rename('xau_usd'), how='left')
+            data_daily = data_daily.join(external_data["USDCNY=X"].rename('usd_cny'), how='left')
+
+            data_daily['xau_usd'] = data_daily['xau_usd'].ffill()
+            data_daily['usd_cny'] = data_daily['usd_cny'].ffill()
+        except Exception as e:
+            print(f"--- !!! [K线任务] 获取 XAU/USD 和 USD/CNY 失败: {e} !!! ---")
+            data_daily['xau_usd'] = None
+            data_daily['usd_cny'] = None
+
+        print("--- [K线任务] 正在计算特征工程... ---")
+        data_daily['xau_cny_derived'] = data_daily['xau_usd'] * data_daily['usd_cny']
+        data_daily['gold_spread'] = data_daily['close'] - (data_daily['xau_cny_derived'] / 31.1035)
 
         print("--- [K线任务] 正在计算均线 (MA)... ---")
         data_daily['MA5'] = data_daily['close'].rolling(window=5).mean()
@@ -72,10 +94,9 @@ def _fetch_kline_data_sync():
         print("--- [K线任务] 正在格式化并缓存K线数据... ---")
 
         data_ai_features = data_daily.dropna()
-        chart_data_daily = format_for_echarts_kline(data_daily.copy())
-        
+
         return {
-            'chart_daily': chart_data_daily,
+            'chart_daily': format_for_echarts_kline(data_daily.copy()),
             'chart_weekly': format_for_echarts_kline(data_weekly.copy()),
             'chart_monthly': format_for_echarts_kline(data_monthly.copy()),
             'ai_features': data_ai_features.to_json(orient='records')
