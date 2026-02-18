@@ -7,5 +7,4 @@ pytz
 yfinance
 pandas-ta
 chinese-calendar
-snownlp
 psutil

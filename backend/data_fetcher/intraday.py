@@ -1,6 +1,7 @@
 import asyncio
 import akshare as ak
 import datetime
+import json
 
 from cache import intraday_cache
 from utils import get_sge_trade_date_and_hour
@@ -24,8 +25,10 @@ async def update_intraday_cache():
     if (current_hour >= 20 or current_hour < 3) or (9 <= current_hour < 16):
         try:
             data_df = await asyncio.to_thread(ak.spot_quotations_sge, symbol="Au99.99")
-            if data_df is None: 
-                raise Exception("--- !!! [分时图任务] AkShare 未能下载 SGE 'Au99.99' 分时数据。 ---")
+            
+            if data_df is None or data_df.empty:
+                print("--- [分时图任务] API 返回空数据，可能处于休市时段 ---")
+                return
 
             processed = []
             time_col = '时间' if '时间' in data_df.columns else 'TIME'
@@ -59,8 +62,13 @@ async def update_intraday_cache():
             elif (9 <= current_hour < 16):
                 intraday_cache["day_session"] = processed
 
+        except json.JSONDecodeError as e:
+            print(f"--- !!! [分时图任务] API 返回数据格式错误（可能休市或网络问题）---")
+            print(f"--- JSON 解析错误: {e} ---")
         except Exception as e:
-            print(f"--- !!! [分时图任务] 缓存更新失败 !!! ---\n错误: {e}")
+            print(f"--- !!! [分时图任务] 缓存更新失败 !!! ---")
+            print(f"--- 错误类型: {type(e).__name__} ---")
+            print(f"--- 错误详情: {e} ---")
 
 async def intraday_cache_loop():
     while True:

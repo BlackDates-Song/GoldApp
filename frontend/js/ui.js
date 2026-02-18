@@ -47,49 +47,9 @@ export function renderNewsData(element, data) {
     }
 
     const newsList = data.items;
-    const sentiment = data.sentiment_index;
     
-    // [v4.116] 处理正在分析的状态
-    let isAnalyzing = (sentiment === null || sentiment === undefined);
-    
-    let sentimentColor = '#888';
-    let sentimentText = '中性';
-    let barPercent = 50; // 默认中间
-    let barClass = ''; // 用于 CSS 动画 (可选)
-
-    if (isAnalyzing) {
-        sentimentText = 'AI 分析中...';
-        sentimentColor = '#1890ff'; // 蓝色表示正在处理
-        // 可以让进度条显示一个等待状态，这里简单设为50%
-    } else {
-        // 分析完成，正常显示颜色
-        if (sentiment > 0.2) { sentimentColor = '#ff4d4f'; sentimentText = '看涨 (利好)'; }
-        else if (sentiment < -0.2) { sentimentColor = '#52c41a'; sentimentText = '看跌 (利空)'; }
-        barPercent = ((sentiment + 1) / 2) * 100;
-    }
-    
-    // 样式调整: 如果是分析中，进度条可以是灰色的或者加个条纹动画
-    const barBackground = isAnalyzing 
-        ? 'background-color: #d9d9d9;' 
-        : 'background: linear-gradient(90deg, #52c41a 0%, #ff4d4f 100%);';
-
-    const sentimentHtml = `
-        <div style="position: sticky; top: 0; z-index: 10; padding: 10px; background-color: #f9f9f9; border-bottom: 1px solid #eee; margin-bottom: 10px; border-radius: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
-            <div style="display: flex; justify-content: space-between; margin-bottom: 5px; font-size: 0.9rem;">
-                <span style="font-weight: bold;">AI 舆情分析</span>
-                <span style="color: ${sentimentColor}; font-weight: bold;">
-                    ${sentimentText} ${isAnalyzing ? '' : `(${sentiment.toFixed(2)})`}
-                </span>
-            </div>
-            <div style="height: 6px; background-color: #e8e8e8; border-radius: 3px; position: relative; overflow: hidden;">
-                <div style="position: absolute; left: 50%; top: 0; bottom: 0; width: 2px; background-color: #333; z-index: 1;"></div>
-                <div style="height: 100%; width: ${barPercent}%; ${barBackground} transition: width 0.5s;"></div>
-            </div>
-        </div>
-    `;
-
-    // 2. 构建新闻列表 HTML
-    // 我们这里先 slice(0, 20) 只显示最新的 20 条，防止页面太长
+    // 构建新闻列表 HTML
+    // 只显示最新的 20 条，防止页面太长
     const reversedList = [...newsList].reverse().slice(0, 20); 
     
     let listHtml = '';
@@ -103,7 +63,7 @@ export function renderNewsData(element, data) {
         listHtml += `<div class="news-item"><div class="news-time">${formattedTime}</div><div class="news-title">${title}</div><div class="news-content">${content}</div></div>`;
     });
 
-    element.innerHTML = sentimentHtml + listHtml;
+    element.innerHTML = listHtml;
 }
 
 // --- 4. 全球市场 ---

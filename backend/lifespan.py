@@ -47,11 +47,11 @@ async def lifespan(app):
     asyncio.create_task(data_fetcher.update_spdr_gold_periodically())
     print("--- [启动] 所有后台定时刷新任务已启动 ---")
 
-    print("--- [启动] 正在启动新闻NLP任务 ---")
+    print("--- [启动] 正在启动新闻加载任务 ---")
     log_memory("新闻任务开始")
     asyncio.create_task(data_fetcher.fetch_and_cache_news())
     asyncio.create_task(data_fetcher.update_news_cache_periodically())
-    print("--- [启动] 新闻NLP任务已启动 ---")
+    print("--- [启动] 新闻加载任务已启动 ---")
     log_memory("新闻任务结束")
 
     print("--- [启动] 正在启动慢速SPDR任务 ---")

@@ -34,63 +34,17 @@ def _fetch_news_data_sync():
 
     return news_df.to_dict('records')
 
-def _analyze_sentiment_sync(news_items):
-    print(f"--- [新闻任务] 正在进行 NLP 情感分析 ---")
-    log_memory("新闻情感分析开始")
-    from snownlp import SnowNLP
-    total_score = 0
-    count = 0
-    log_memory("新闻情感分析循环开始")
-    for item in news_items:
-        s = 0.5
-        try:
-            content = item.get('report_content')
-            if content:
-                short_content = content[:100]  # 取前100个字符进行情感分析
-                s = SnowNLP(short_content).sentiments
-        except:
-            pass
-        total_score += s
-        count += 1
-        item['sentiment'] = s
-        del s
-
-    log_memory("新闻情感分析循环结束")
-    gc.collect()
-
-    if count == 0:
-        return 0
-    
-    avg_raw_score = total_score / count
-    return (avg_raw_score - 0.5) * 2
-
 async def fetch_and_cache_news():
     try:
         news_items = await asyncio.to_thread(_fetch_news_data_sync)
         if news_items:
-            # [关键] 第一次更新缓存：有新闻，但情绪是 None
-            # 前端看到这个，就会显示新闻列表 + "正在分析..."
-            cached_data['news'] = {
-                "items": news_items, 
-                "sentiment_index": None 
-            }
-            print(f"--- [新闻任务] 阶段1完成: 已缓存 {len(news_items)} 条新闻 (等待分析) ---")
-            
-            # 2. 执行 NLP 分析
-            sentiment_index = await asyncio.to_thread(_analyze_sentiment_sync, news_items)
-            
-            # [关键] 第二次更新缓存：补全情绪分数
-            cached_data['news'] = {
-                "items": news_items,
-                "sentiment_index": sentiment_index
-            }
-            print(f"--- [新闻任务] 阶段2完成: 情绪指数 {sentiment_index:.2f} ---")
+            cached_data['news'] = {"items": news_items}
+            print(f"--- [新闻任务] 完成: 已缓存 {len(news_items)} 条新闻 ---")
 
     except Exception as e:
         print(f"--- !!! [新闻任务] 失败 !!! ---\n错误: {e}")
-        # 保持缓存现状，或者设为空
         if 'news' not in cached_data:
-             cached_data['news'] = {"items": [], "sentiment_index": 0}
+             cached_data['news'] = {"items": []}
 
 async def update_news_cache_periodically():
     while True:
