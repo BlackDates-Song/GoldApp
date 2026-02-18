@@ -28,13 +28,48 @@ async def get_gold_intraday():
 @router.get("/api/gold-realtime-quote")
 async def get_gold_realtime_quote():
     try:
-        now = datetime.datetime.now(TZ_SHANGHAI); server_update_time_str = now.strftime("%Y-%m-%d %H:%M:%S") 
+        now = datetime.datetime.now(TZ_SHANGHAI)
+        server_update_time_str = now.strftime("%Y-%m-%d %H:%M:%S") 
         data_df = await asyncio.to_thread(ak.spot_quotations_sge, symbol="Au99.99")
-        if data_df.empty: raise HTTPException(status_code=404, detail="未返回实时数据")
-        latest_quote = data_df.iloc[-1]; time_col = '时间' if '时间' in latest_quote else 'TIME'
-        return {"success": True, "price": latest_quote['现价'], "time": latest_quote[time_col], "update_time": server_update_time_str}
+        
+        if data_df is None or data_df.empty:
+            raise HTTPException(status_code=404, detail="未返回实时数据")
+        
+        latest_quote = data_df.iloc[-1]
+        
+        # 使用"更新时间"字段作为 SGE 时间（包含完整日期时间）
+        try:
+            if '更新时间' in latest_quote:
+                sge_time = latest_quote['更新时间']
+            elif 'UPDATE_TIME' in latest_quote:
+                sge_time = latest_quote['UPDATE_TIME']
+            else:
+                # 如果没有更新时间字段，使用"时间"字段
+                time_col = '时间' if '时间' in latest_quote else 'TIME'
+                sge_time = latest_quote[time_col]
+            
+            # 将中文日期格式转换为标准格式：2026年02月13日 15:45:00 -> 2026-02-13 15:45:00
+            if isinstance(sge_time, str) and '年' in sge_time:
+                sge_time = sge_time.replace('年', '-').replace('月', '-').replace('日', '')
+        except Exception as e:
+            print(f"--- [实时报价] 时间字段解析失败: {e} ---")
+            print(f"--- 可用字段: {latest_quote.index.tolist()} ---")
+            sge_time = "N/A"
+        
+        return {
+            "success": True, 
+            "price": float(latest_quote['现价']), 
+            "time": str(sge_time),
+            "update_time": server_update_time_str
+        }
+    except HTTPException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"获取实时报价失败: {e}")
+        import traceback
+        print(f"--- !!! [实时报价] 获取失败 !!! ---")
+        print(f"--- 错误: {e} ---")
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"获取实时报价失败: {str(e)}")
 
 # --- (v4.30) 简单 AI API (不变) ---
 @router.get("/api/ai-prediction")
